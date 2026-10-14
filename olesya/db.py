@@ -16,8 +16,8 @@ BRANCHES = ("center", "north", "river", "park", "loft", "other")
 PRIORITIES = ("low", "normal", "high")
 REQUEST_STATUSES = ("new", "assigned", "done", "cancelled")
 CLASS_STATUSES = ("open", "full", "completed", "cancelled")
-ENROLL_STATUSES = ("confirmed", "completed", "cancelled")
-ORDER_STATUSES = ("new", "accepted", "ready", "completed", "cancelled")
+ENROLL_STATUSES = ("confirmed", "completed", "missed", "cancelled")
+ORDER_STATUSES = ("new", "accepted", "issued", "returned", "cancelled")
 PRODUCT_CATEGORIES = ("costume", "shoes", "accessory")
 REVIEW_KINDS = ("teacher", "class", "product")
 
@@ -42,7 +42,7 @@ BRANCH_RU = {
     "river": "Зал у реки",
     "park": "Парковый зал",
     "loft": "Лофт",
-    "other": "Любая площадка",
+    "other": "Любой зал",
 }
 PRIORITY_RU = {
     "low": "Низкий",
@@ -62,15 +62,16 @@ CLASS_STATUS_RU = {
     "cancelled": "Отменено",
 }
 ENROLL_STATUS_RU = {
-    "confirmed": "В расписании",
-    "completed": "Отработано",
+    "confirmed": "Записан",
+    "completed": "Был",
+    "missed": "Не пришёл",
     "cancelled": "Снято",
 }
 ORDER_STATUS_RU = {
-    "new": "Новый",
+    "new": "Новый запрос",
     "accepted": "Принят",
-    "ready": "Можно забрать",
-    "completed": "Выдан",
+    "issued": "Выдан",
+    "returned": "Возвращён",
     "cancelled": "Отменён",
 }
 PRODUCT_CATEGORY_RU = {
@@ -81,9 +82,9 @@ PRODUCT_CATEGORY_RU = {
 
 ORDER_FLOW = {
     "new": {"accepted", "cancelled"},
-    "accepted": {"ready", "cancelled"},
-    "ready": {"completed", "cancelled"},
-    "completed": set(),
+    "accepted": {"issued", "cancelled"},
+    "issued": {"returned"},
+    "returned": set(),
     "cancelled": set(),
 }
 
@@ -104,7 +105,8 @@ BADGES = (
     ("solo", "Соло", "Проведённый индивидуальный урок", 50),
     ("voice", "Голос зала", "Первая оценка", 20),
     ("costume", "Гардероб", "Выданный заказ костюмерной", 30),
-    ("regular", "Постоянный", "Три записи в расписании или уже отработанные", 40),
+    ("regular", "Постоянный", "Три посещённых занятия", 40),
+    ("steady", "Без пропусков", "Четыре посещения и ни одного пропуска", 70),
 )
 BADGE_BY = {item[0]: item for item in BADGES}
 
@@ -269,7 +271,9 @@ def init_db():
                 name         TEXT NOT NULL,
                 description  TEXT NOT NULL DEFAULT '',
                 category     TEXT NOT NULL,
-                price        INTEGER NOT NULL CHECK (price > 0),
+                style        TEXT NOT NULL DEFAULT 'other',
+                size         TEXT NOT NULL DEFAULT '',
+                price        INTEGER NOT NULL DEFAULT 1 CHECK (price > 0),
                 stock        INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
                 is_active    INTEGER NOT NULL DEFAULT 1,
                 created_at   TEXT NOT NULL
@@ -351,8 +355,36 @@ def init_db():
             CREATE INDEX IF NOT EXISTS ix_xp_user ON xp_log(user_id);
             """
         )
+        _migrate(conn)
     _seed(conn)
+    with conn:
+        for row in conn.execute("SELECT id FROM users WHERE role = 'student'"):
+            _sync_badges(conn, row["id"])
     conn.close()
+
+
+def _migrate(conn):
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(products)")}
+    if "style" not in columns:
+        conn.execute("ALTER TABLE products ADD COLUMN style TEXT NOT NULL DEFAULT 'other'")
+    if "size" not in columns:
+        conn.execute("ALTER TABLE products ADD COLUMN size TEXT NOT NULL DEFAULT ''")
+    conn.execute("UPDATE orders SET status = 'accepted' WHERE status = 'ready'")
+    conn.execute("UPDATE orders SET status = 'issued' WHERE status = 'completed'")
+    for name, style, size in (
+        ("Купальник", "ballet", "S–M"),
+        ("Шифоновая юбка", "ballet", "универсальный"),
+        ("Трико", "ballet", "S–L"),
+        ("Мягкие балетки", "ballet", "36–39"),
+        ("Кроссовки для зала", "hiphop", "38–42"),
+        ("Туфли латина", "latin", "36–39"),
+        ("Гетры", "other", "универсальный"),
+        ("Сумка для формы", "other", "—"),
+    ):
+        conn.execute(
+            "UPDATE products SET style = ?, size = ? WHERE name = ? AND IFNULL(size, '') = ''",
+            (style, size, name),
+        )
 
 
 def _seed(conn):
@@ -452,13 +484,13 @@ def _seed_demo(conn):
             _log(conn, "request", request_id, ids[teacher], "Статус: Проведена", created)
         return request_id
 
-    def add_product(key, atelier, name, description, category, price, stock):
+    def add_product(key, atelier, name, description, category, style, size, stock):
         cur = conn.execute(
-            "INSERT INTO products (atelier_id, name, description, category, price, stock, is_active, created_at)"
-            " VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
-            (ids[atelier], name, description, category, price, stock, "2026-09-01 11:00:00"),
+            "INSERT INTO products (atelier_id, name, description, category, style, size, price, stock, is_active, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1, ?)",
+            (ids[atelier], name, description, category, style, size, stock, "2026-09-01 11:00:00"),
         )
-        products[key] = {"id": cur.lastrowid, "atelier": atelier, "name": name, "price": price}
+        products[key] = {"id": cur.lastrowid, "atelier": atelier, "name": name, "price": 1}
 
     def add_order(student, product_key, qty, status, created):
         product = products[product_key]
@@ -472,7 +504,12 @@ def _seed_demo(conn):
             "INSERT INTO order_items (order_id, product_id, name, qty, price) VALUES (?, ?, ?, ?, ?)",
             (order_id, product["id"], product["name"], qty, product["price"]),
         )
-        _log(conn, "order", order_id, ids[student], "Заказ оформлен", created)
+        _log(conn, "order", order_id, ids[student], "Запрос в костюмерную", created)
+        if status in ("new", "accepted", "issued"):
+            conn.execute(
+                "UPDATE products SET stock = MAX(stock - ?, 0) WHERE id = ?",
+                (qty, product["id"]),
+            )
         if status != "new":
             _log(conn, "order", order_id, ids[product["atelier"]], f"Статус: {ORDER_STATUS_RU[status]}", created)
         return order_id
@@ -617,19 +654,19 @@ def _seed_demo(conn):
             "latin", "river", 1, "2026-11-06", "high", "zaitseva", None, "new", "2026-10-11 09:20:00",
         )
 
-        add_product("leo", "lisina", "Купальник", "Чёрный, рукав 3/4, хлопок с эластаном.", "costume", 2400, 7)
-        add_product("skirt", "lisina", "Шифоновая юбка", "Репетиционная, длина миди.", "costume", 1800, 5)
-        add_product("tights", "lisina", "Трико", "Телесные, плотность 80 den.", "costume", 700, 14)
-        add_product("pointe", "kravtsov", "Мягкие балетки", "Кожа, чёрные, несколько размеров.", "shoes", 2200, 6)
-        add_product("sneaker", "kravtsov", "Кроссовки для зала", "Ровная подошва, не оставляют след.", "shoes", 4600, 4)
-        add_product("latin_shoe", "kravtsov", "Туфли латина", "Каблук 5 см, телесные.", "shoes", 3900, 3)
-        add_product("warmers", "shirokova", "Гетры", "Вязаные, серые.", "accessory", 650, 12)
-        add_product("bag", "shirokova", "Сумка для формы", "Отделение под обувь.", "accessory", 2100, 8)
+        add_product("leo", "lisina", "Купальник", "Чёрный, рукав 3/4, хлопок с эластаном.", "costume", "ballet", "S–M", 7)
+        add_product("skirt", "lisina", "Шифоновая юбка", "Репетиционная, длина миди.", "costume", "ballet", "универсальный", 5)
+        add_product("tights", "lisina", "Трико", "Телесные, плотность 80 den.", "costume", "ballet", "S–L", 14)
+        add_product("pointe", "kravtsov", "Мягкие балетки", "Кожа, чёрные, несколько размеров.", "shoes", "ballet", "36–39", 6)
+        add_product("sneaker", "kravtsov", "Кроссовки для зала", "Ровная подошва, не оставляют след.", "shoes", "hiphop", "38–42", 4)
+        add_product("latin_shoe", "kravtsov", "Туфли латина", "Каблук 5 см, телесные.", "shoes", "latin", "36–39", 3)
+        add_product("warmers", "shirokova", "Гетры", "Вязаные, серые.", "accessory", "other", "универсальный", 12)
+        add_product("bag", "shirokova", "Сумка для формы", "Отделение под обувь.", "accessory", "other", "—", 8)
 
-        costume_order = add_order("volkova", "leo", 1, "completed", "2026-09-15 13:00:00")
+        costume_order = add_order("volkova", "leo", 1, "issued", "2026-09-15 13:00:00")
         add_order("egorov", "sneaker", 1, "accepted", "2026-10-08 17:20:00")
         add_order("kim", "warmers", 2, "new", "2026-10-11 10:05:00")
-        _log(conn, "order", costume_order, ids["volkova"], "Ученик забрал заказ", "2026-09-16 12:00:00")
+        _log(conn, "order", costume_order, ids["volkova"], "Костюм выдан ученику", "2026-09-16 12:00:00")
         _grant_order(conn, costume_order, "2026-09-16 12:00:00")
 
         review_specs = (
@@ -781,16 +818,20 @@ def _eligible_badges(conn, user_id):
         (user_id,),
     ).fetchone()[0]
     orders = conn.execute(
-        "SELECT COUNT(*) FROM orders WHERE student_id = ? AND status = 'completed'",
+        "SELECT COUNT(*) FROM orders WHERE student_id = ? AND status IN ('issued', 'returned')",
         (user_id,),
     ).fetchone()[0]
-    visits = conn.execute(
-        "SELECT COUNT(*) FROM enrollments WHERE student_id = ? AND status IN ('confirmed', 'completed')",
+    missed = conn.execute(
+        "SELECT COUNT(*) FROM enrollments WHERE student_id = ? AND status = 'missed'",
         (user_id,),
     ).fetchone()[0]
     codes = []
     if done_classes >= 1:
         codes.append("debut")
+    if done_classes >= 3:
+        codes.append("regular")
+    if done_classes >= 4 and missed == 0:
+        codes.append("steady")
     if done_classes >= 5:
         codes.append("five")
     if done_classes >= 10:
@@ -803,8 +844,6 @@ def _eligible_badges(conn, user_id):
         codes.append("voice")
     if orders >= 1:
         codes.append("costume")
-    if visits >= 3:
-        codes.append("regular")
     return codes
 
 
@@ -852,14 +891,14 @@ def _grant_order(conn, order_id, created_at=None):
         "SELECT student_id, status FROM orders WHERE id = ?",
         (order_id,),
     ).fetchone()
-    if not row or row["status"] != "completed":
+    if not row or row["status"] != "issued":
         return 0
     return _grant_source(
         conn,
         row["student_id"],
         f"order:{order_id}",
         XP_ORDER,
-        "Заказ из гардероба",
+        "Костюм из костюмерной",
         created_at,
     )
 
@@ -931,7 +970,7 @@ def create_user(login, password, full_name, role="student", style="other", branc
     if style not in STYLES:
         return False, "Неизвестный стиль"
     if branch not in BRANCHES:
-        return False, "Неизвестная площадка"
+        return False, "Неизвестный зал"
     if len(about) > 300:
         return False, "Текст «о себе» слишком длинный"
     conn = connect()
@@ -1026,7 +1065,7 @@ def update_user(user_id, **fields):
     if "style" in values and values["style"] not in STYLES:
         return False, "Неизвестный стиль"
     if "branch" in values and values["branch"] not in BRANCHES:
-        return False, "Неизвестная площадка"
+        return False, "Неизвестный зал"
     if "is_active" in values:
         values["is_active"] = int(values["is_active"])
     if not values:
@@ -1101,7 +1140,7 @@ def create_request(title, description, style, branch, people, preferred_date, pr
     if style not in STYLES:
         return None, "Неизвестный стиль"
     if branch not in BRANCHES:
-        return None, "Неизвестная площадка"
+        return None, "Неизвестный зал"
     if priority not in PRIORITIES:
         return None, "Неизвестный приоритет"
     people_count, error = _as_int(people, 1, 12, "Число людей")
@@ -1337,7 +1376,7 @@ def create_class(title, description, style, branch, class_date, duration_hours, 
     if style not in STYLES or style == "other":
         return None, "Выберите стиль занятия"
     if branch not in BRANCHES or branch == "other":
-        return None, "Выберите площадку"
+        return None, "Выберите зал"
     parsed_date, error = _parse_date(class_date, not_past=True)
     if error:
         return None, error
@@ -1416,7 +1455,8 @@ def _sync_class_capacity(conn, class_id, actor_id):
         _log(conn, "class", class_id, actor_id, "Снова есть свободные места")
 
 
-def set_class_status(class_id, status, actor_id):
+def set_class_status(class_id, status, actor_id, present_ids=None):
+    """Закрывает занятие. При завершении опыт получают только отмеченные ученики."""
     if status not in ("completed", "cancelled"):
         return False, "Неизвестный статус"
     conn = connect()
@@ -1438,11 +1478,23 @@ def set_class_status(class_id, status, actor_id):
                 (class_id,),
             ).fetchall()
             gained = 0
+            came = 0
+            missed = 0
             if status == "completed":
+                if present_ids is None:
+                    present = {row["id"] for row in rows}
+                else:
+                    present = {int(item) for item in present_ids}
                 for row in rows:
-                    conn.execute("UPDATE enrollments SET status = 'completed' WHERE id = ?", (row["id"],))
-                    _log(conn, "enrollment", row["id"], actor_id, "Запись закрыта вместе с занятием")
-                    gained += _grant_enrollment(conn, row["id"])
+                    if row["id"] in present:
+                        conn.execute("UPDATE enrollments SET status = 'completed' WHERE id = ?", (row["id"],))
+                        _log(conn, "enrollment", row["id"], actor_id, "Был на занятии")
+                        gained += _grant_enrollment(conn, row["id"])
+                        came += 1
+                    else:
+                        conn.execute("UPDATE enrollments SET status = 'missed' WHERE id = ?", (row["id"],))
+                        _log(conn, "enrollment", row["id"], actor_id, "Не пришёл на занятие")
+                        missed += 1
             else:
                 for row in rows:
                     conn.execute("UPDATE enrollments SET status = 'cancelled' WHERE id = ?", (row["id"],))
@@ -1451,9 +1503,7 @@ def set_class_status(class_id, status, actor_id):
             _log(conn, "class", class_id, actor_id, f"Статус: {CLASS_STATUS_RU[status]}")
         if status == "cancelled":
             return True, f"Занятие отменено. Снято записей: {len(rows)}"
-        if gained:
-            return True, f"Занятие прошло. Ученикам начислено {gained} XP"
-        return True, "Занятие завершено"
+        return True, f"Занятие закрыто. Были: {came}, не пришли: {missed}. Опыт: {gained} XP"
     finally:
         conn.close()
 
@@ -1570,19 +1620,21 @@ def confirmed_enrollment(class_id, student_id):
     return dict(row) if row else None
 
 
-def create_product(atelier_id, name, description, category, price, stock):
+def create_product(atelier_id, name, description, category, size, stock, style="other"):
     name = name.strip()
     description = description.strip()
+    size = (size or "").strip()
     if not name or len(name) > 80:
         return None, "Укажите название, не длиннее 80 символов"
     if len(description) > 1000:
         return None, "Описание слишком длинное"
+    if len(size) > 40:
+        return None, "Размер слишком длинный"
     if category not in PRODUCT_CATEGORIES:
         return None, "Неизвестная категория"
-    amount, error = _as_int(price, 1, 200_000, "Цена")
-    if error:
-        return None, error
-    qty, error = _as_int(stock, 0, 10_000, "Остаток")
+    if style not in STYLES:
+        return None, "Неизвестное направление"
+    qty, error = _as_int(stock, 0, 10_000, "Сколько свободно")
     if error:
         return None, error
     conn = connect()
@@ -1590,13 +1642,13 @@ def create_product(atelier_id, name, description, category, price, stock):
         with conn:
             atelier = conn.execute("SELECT * FROM users WHERE id = ?", (atelier_id,)).fetchone()
             if not atelier or atelier["role"] != "atelier" or not atelier["is_active"]:
-                return None, "Вещь добавляет активный костюмер"
+                return None, "Карточку добавляет активный костюмер"
             if _product_name_taken(conn, atelier_id, name):
-                return None, "Такая вещь уже есть"
+                return None, "Такая вещь уже есть в костюмерной"
             cur = conn.execute(
-                "INSERT INTO products (atelier_id, name, description, category, price, stock, is_active, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
-                (atelier_id, name, description, category, amount, qty, now()),
+                "INSERT INTO products (atelier_id, name, description, category, style, size, price, stock, is_active, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, 1, ?, 1, ?)",
+                (atelier_id, name, description, category, style, size, qty, now()),
             )
         return cur.lastrowid, None
     finally:
@@ -1618,7 +1670,7 @@ def _product_name_taken(conn, atelier_id, name, exclude_id=None):
 
 
 def update_product(product_id, actor_id, **fields):
-    allowed = {"name", "description", "category", "price", "stock", "is_active"}
+    allowed = {"name", "description", "category", "style", "size", "stock", "is_active"}
     values = {key: value for key, value in fields.items() if key in allowed and value is not None}
     conn = connect()
     try:
@@ -1626,7 +1678,7 @@ def update_product(product_id, actor_id, **fields):
             product = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
             actor = conn.execute("SELECT * FROM users WHERE id = ?", (actor_id,)).fetchone()
             if not product:
-                return False, "Вещь не найдена"
+                return False, "Костюм не найден"
             if not actor or not actor["is_active"]:
                 return False, "Недостаточно прав"
             if actor["role"] != "admin" and actor["id"] != product["atelier_id"]:
@@ -1636,20 +1688,21 @@ def update_product(product_id, actor_id, **fields):
                 if not values["name"] or len(values["name"]) > 80:
                     return False, "Укажите название, не длиннее 80 символов"
                 if _product_name_taken(conn, product["atelier_id"], values["name"], product_id):
-                    return False, "Такая вещь уже есть"
+                    return False, "Такая вещь уже есть в костюмерной"
             if "description" in values:
                 values["description"] = values["description"].strip()
                 if len(values["description"]) > 1000:
                     return False, "Описание слишком длинное"
             if "category" in values and values["category"] not in PRODUCT_CATEGORIES:
                 return False, "Неизвестная категория"
-            if "price" in values:
-                amount, error = _as_int(values["price"], 1, 200_000, "Цена")
-                if error:
-                    return False, error
-                values["price"] = amount
+            if "style" in values and values["style"] not in STYLES:
+                return False, "Неизвестное направление"
+            if "size" in values:
+                values["size"] = (values["size"] or "").strip()
+                if len(values["size"]) > 40:
+                    return False, "Размер слишком длинный"
             if "stock" in values:
-                qty, error = _as_int(values["stock"], 0, 10_000, "Остаток")
+                qty, error = _as_int(values["stock"], 0, 10_000, "Сколько свободно")
                 if error:
                     return False, error
                 values["stock"] = qty
@@ -1662,7 +1715,7 @@ def update_product(product_id, actor_id, **fields):
                 f"UPDATE products SET {assignments} WHERE id = ?",
                 (*values.values(), product_id),
             )
-        return True, "Вещь сохранена"
+        return True, "Карточка сохранена"
     finally:
         conn.close()
 
@@ -1708,31 +1761,30 @@ def create_order(student_id, product_id, qty):
             student = conn.execute("SELECT * FROM users WHERE id = ?", (student_id,)).fetchone()
             product = conn.execute("SELECT * FROM products WHERE id = ?", (product_id,)).fetchone()
             if not student or student["role"] != "student" or not student["is_active"]:
-                return None, "Заказ оформляет активный ученик"
+                return None, "Запрос отправляет активный ученик"
             if not product or not product["is_active"]:
-                return None, "Вещь недоступна"
+                return None, "Этого сейчас нет в костюмерной"
             atelier = conn.execute("SELECT * FROM users WHERE id = ?", (product["atelier_id"],)).fetchone()
             if not atelier or atelier["role"] != "atelier" or not atelier["is_active"]:
                 return None, "Костюмер сейчас недоступен"
             if amount > product["stock"]:
-                return None, f"На складе осталось: {product['stock']}"
+                return None, f"Свободно единиц: {product['stock']}"
             updated = conn.execute(
                 "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
                 (amount, product_id, amount),
             )
             if updated.rowcount != 1:
-                return None, "На складе уже не хватает"
-            total = product["price"] * amount
+                return None, "Столько свободных единиц уже нет"
             cur = conn.execute(
                 "INSERT INTO orders (student_id, atelier_id, status, total, created_at) VALUES (?, ?, 'new', ?, ?)",
-                (student_id, product["atelier_id"], total, now()),
+                (student_id, product["atelier_id"], amount, now()),
             )
             order_id = cur.lastrowid
             conn.execute(
-                "INSERT INTO order_items (order_id, product_id, name, qty, price) VALUES (?, ?, ?, ?, ?)",
-                (order_id, product_id, product["name"], amount, product["price"]),
+                "INSERT INTO order_items (order_id, product_id, name, qty, price) VALUES (?, ?, ?, ?, 1)",
+                (order_id, product_id, product["name"], amount),
             )
-            _log(conn, "order", order_id, student_id, "Заказ оформлен")
+            _log(conn, "order", order_id, student_id, "Запрос в костюмерную")
         return order_id, None
     finally:
         conn.close()
@@ -1792,10 +1844,10 @@ def set_order_status(order_id, status, actor_id):
             order = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
             actor = conn.execute("SELECT * FROM users WHERE id = ?", (actor_id,)).fetchone()
             if not order:
-                return False, "Заказ не найден"
+                return False, "Выдача не найдена"
             if not actor or not actor["is_active"]:
                 return False, "Недостаточно прав"
-            if status not in ORDER_FLOW[order["status"]]:
+            if status not in ORDER_FLOW.get(order["status"], set()):
                 return False, "Так статус сменить нельзя"
             is_atelier = actor["role"] == "atelier" and actor["id"] == order["atelier_id"]
             is_student = actor["id"] == order["student_id"]
@@ -1803,10 +1855,13 @@ def set_order_status(order_id, status, actor_id):
             if status == "cancelled":
                 student_can = is_student and order["status"] == "new"
                 if not (is_admin or is_atelier or student_can):
-                    return False, "Отменить заказ может костюмер, администратор или ученик, пока заказ новый"
+                    return False, "Отменить запрос может костюмер, администратор или ученик, пока его не приняли"
+            elif status == "returned":
+                if not (is_admin or is_atelier or is_student):
+                    return False, "Возврат отмечает ученик, костюмер или администратор"
             elif not (is_admin or is_atelier):
-                return False, "Статус заказа меняет костюмер"
-            if status == "cancelled":
+                return False, "Статус выдачи меняет костюмер"
+            if status in ("cancelled", "returned"):
                 for item in conn.execute("SELECT * FROM order_items WHERE order_id = ?", (order_id,)):
                     conn.execute(
                         "UPDATE products SET stock = stock + ? WHERE id = ?",
@@ -1814,10 +1869,16 @@ def set_order_status(order_id, status, actor_id):
                     )
             conn.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
             _log(conn, "order", order_id, actor_id, f"Статус: {ORDER_STATUS_RU[status]}")
-            gained = _grant_order(conn, order_id) if status == "completed" else 0
-        if gained:
-            return True, f"Заказ выдан. Ученику +{gained} XP"
-        return True, "Статус заказа обновлён"
+            gained = _grant_order(conn, order_id) if status == "issued" else 0
+        if status == "issued" and gained:
+            return True, f"Костюм выдан. Ученику +{gained} XP"
+        if status == "issued":
+            return True, "Костюм выдан"
+        if status == "returned":
+            return True, "Возврат принят, вещи снова в костюмерной"
+        if status == "cancelled":
+            return True, "Запрос отменён"
+        return True, "Статус выдачи обновлён"
     finally:
         conn.close()
 
@@ -1867,7 +1928,7 @@ def _review_eligible(conn, author_id, kind, target_id):
     if kind == "product":
         return bool(conn.execute(
             "SELECT 1 FROM orders o JOIN order_items i ON i.order_id = o.id"
-            " WHERE o.student_id = ? AND i.product_id = ? AND o.status = 'completed'",
+            " WHERE o.student_id = ? AND i.product_id = ? AND o.status IN ('issued', 'returned')",
             (author_id, target_id),
         ).fetchone())
     return False

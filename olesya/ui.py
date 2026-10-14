@@ -25,261 +25,235 @@ STYLE_TONE = {
     "other": "ol-plum",
 }
 CSS = """
-@define-color accent_bg_color #9d2a3f;
-@define-color accent_fg_color #fff6ef;
-@define-color accent_color #7c1f30;
-@define-color window_bg_color #f4ece1;
-@define-color window_fg_color #2b1c1e;
-@define-color view_bg_color #f4ece1;
-@define-color view_fg_color #2b1c1e;
-@define-color card_bg_color #fffdf8;
-@define-color card_fg_color #2b1c1e;
-@define-color headerbar_bg_color #2a1216;
-@define-color headerbar_fg_color #f1e4d6;
-@define-color popover_bg_color #fffdf8;
-@define-color popover_fg_color #2b1c1e;
-@define-color dialog_bg_color #fffdf8;
-@define-color dialog_fg_color #2b1c1e;
+@define-color accent_bg_color #b44862;
+@define-color accent_fg_color #ffffff;
+@define-color accent_color #9a3450;
+@define-color window_bg_color #f6f3f1;
+@define-color window_fg_color #2a2428;
+@define-color view_bg_color #f6f3f1;
+@define-color view_fg_color #2a2428;
+@define-color card_bg_color #ffffff;
+@define-color card_fg_color #2a2428;
+@define-color headerbar_bg_color #fffcfb;
+@define-color headerbar_fg_color #2a2428;
+@define-color popover_bg_color #ffffff;
+@define-color popover_fg_color #2a2428;
+@define-color dialog_bg_color #ffffff;
+@define-color dialog_fg_color #2a2428;
 
-.ol-error { color: #8c2536; font-weight: 700; }
+.ol-error { color: #9a3450; font-weight: 600; }
 
 .ol-titlebar {
-  background: #2a1216;
-  color: #f1e4d6;
+  background: #fffcfb;
+  color: #2a2428;
   box-shadow: none;
-  min-height: 8px;
+  border-bottom: 1px solid rgba(42, 36, 40, 0.08);
 }
-.ol-titlebar label { color: #f1e4d6; }
-.ol-app { background: #f4ece1; }
+.ol-titlebar label { color: #2a2428; }
+.ol-heading { font-weight: 700; }
+.ol-app { background: #f6f3f1; }
 
-.ol-side {
-  background: #2a1216;
-  padding: 16px 14px 18px;
+.ol-top {
+  background: #fffcfb;
+  border-bottom: 1px solid rgba(42, 36, 40, 0.08);
+  padding: 10px 16px 12px;
 }
+.ol-brand { }
 .ol-wordmark {
-  font-family: "Constantia", "Georgia", serif;
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 700;
-  color: #e8c877;
+  color: #2a2428;
 }
 .ol-tagline {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.24em;
-  color: #b0885b;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b44862;
 }
 .ol-role {
-  background: #3a1a20;
+  background: #f8e8ed;
   border-radius: 12px;
-  padding: 10px 12px;
+  padding: 6px 12px;
 }
 .ol-role-name {
-  font-family: "Constantia", "Georgia", serif;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
-  color: #fff6ef;
+  color: #2a2428;
 }
 .ol-role-meta {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #cda167;
+  font-size: 12px;
+  color: #6f656b;
 }
+.ol-navrow { background: transparent; }
+.ol-navrow flowboxchild { background: transparent; padding: 2px; }
 .ol-nav {
+  border-radius: 999px;
+  padding: 6px 14px;
   background: transparent;
-  color: #d8c0b0;
-  border-radius: 0;
-  border-left: 3px solid transparent;
-  padding: 9px 12px;
-  font-weight: 700;
+  font-weight: 600;
 }
-.ol-nav label { color: #d8c0b0; }
-.ol-nav:hover { background: #3a1a20; }
-.ol-nav:checked {
-  background: #3a1a20;
-  border-left-color: #d9a441;
-  color: #e8c877;
-}
-.ol-nav:checked label { color: #e8c877; }
+.ol-nav label { color: #2a2428; }
+.ol-nav:hover { background: rgba(180, 72, 98, 0.08); }
+.ol-nav:checked { background: #f8e8ed; }
+.ol-nav:checked label { color: #9a3450; font-weight: 700; }
 .ol-quiet {
   background: transparent;
-  color: #f1e4d6;
+  color: #2a2428;
   border-radius: 10px;
-  border: 1px solid rgba(241, 228, 214, 0.35);
-  padding: 5px 12px;
+  border: 1px solid rgba(42, 36, 40, 0.16);
+  padding: 6px 12px;
 }
-.ol-quiet label { color: #f1e4d6; }
+.ol-quiet label { color: #2a2428; }
 
-.ol-content { background: #f4ece1; }
-.ol-head { padding: 18px 24px 6px; }
+.ol-content { background: #f6f3f1; }
+.ol-head { padding: 16px 24px 4px; }
 .ol-kicker {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #9d2a3f;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b44862;
 }
 .ol-display {
-  font-family: "Constantia", "Georgia", serif;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 700;
-  color: #2b1c1e;
+  color: #2a2428;
 }
-.ol-meta { color: #8a7669; }
+.ol-meta { color: #6f656b; }
 
 .ol-strips { background: transparent; }
 .ol-strips row {
-  background: #fffdf8;
-  border-radius: 10px;
-  margin-bottom: 6px;
-  border: 1px solid rgba(43, 20, 22, 0.08);
+  background: #ffffff;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(42, 36, 40, 0.08);
 }
-.ol-strips row:selected { background: #f6e6df; }
-.ol-strip { padding: 9px 12px; }
+.ol-strips row:selected { background: #f8e8ed; }
+.ol-strip { padding: 12px 14px; }
 .ol-strip-title {
-  font-family: "Constantia", "Georgia", serif;
   font-size: 15px;
   font-weight: 700;
-  color: #2b1c1e;
+  color: #2a2428;
 }
 .ol-stamp {
-  background: #2a1216;
-  color: #f1e4d6;
-  border-radius: 8px;
-  font-family: "Constantia", "Georgia", serif;
+  background: #f8e8ed;
+  color: #9a3450;
+  border-radius: 10px;
   font-weight: 700;
-  min-width: 40px;
-  padding: 7px 4px;
+  min-width: 46px;
+  padding: 8px 4px;
 }
 .ol-pill {
-  background: #f3e2d8;
-  color: #8c2536;
+  background: #f8e8ed;
+  color: #9a3450;
   border-radius: 999px;
   padding: 4px 10px;
-  font-weight: 700;
+  font-weight: 600;
   font-size: 12px;
 }
 
 .ol-board { background: transparent; }
 flowboxchild { background: transparent; padding: 4px; }
 .ol-card {
-  background: #fffdf8;
-  border-radius: 12px;
-  border: 1px solid rgba(43, 20, 22, 0.07);
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid rgba(42, 36, 40, 0.08);
 }
-.ol-band { padding: 12px 14px 14px; border-radius: 12px 12px 0 0; }
-.ol-band label { color: #fff6ef; }
+.ol-band { padding: 12px 14px 10px; border-radius: 14px 14px 0 0; }
+.ol-band label { color: #2a2428; }
 .ol-card-title {
-  font-family: "Constantia", "Georgia", serif;
-  font-size: 18px;
-  font-weight: 700;
-}
-.ol-card-body { padding: 11px 14px 13px; }
-.ol-price {
-  font-family: "Constantia", "Georgia", serif;
   font-size: 17px;
   font-weight: 700;
-  color: #7c1f30;
+  color: #2a2428;
 }
-.ol-ballet { background: #a85f7f; }
-.ol-contemporary { background: #3f7d78; }
-.ol-hiphop { background: #c2662f; }
-.ol-latin { background: #9d2a3f; }
-.ol-ballroom { background: #3b628c; }
-.ol-kids { background: #bf933a; }
-.ol-plum { background: #5b4a44; }
-.ol-stamp.ol-ballet,
-.ol-stamp.ol-contemporary,
-.ol-stamp.ol-hiphop,
-.ol-stamp.ol-latin,
-.ol-stamp.ol-ballroom,
-.ol-stamp.ol-kids,
-.ol-stamp.ol-plum { color: #fff6ef; }
+.ol-card-body { padding: 12px 14px 14px; }
+.ol-price {
+  font-size: 16px;
+  font-weight: 700;
+  color: #9a3450;
+}
+.ol-ballet { background: #f6d5e0; }
+.ol-contemporary { background: #d7efe8; }
+.ol-hiphop { background: #f8e0d0; }
+.ol-latin { background: #f8d0d6; }
+.ol-ballroom { background: #d9e6f5; }
+.ol-kids { background: #f8ecc8; }
+.ol-plum { background: #ece6ea; }
 
 .ol-stat {
-  background: #fffdf8;
-  border-radius: 12px;
-  padding: 12px 14px;
-  border: 1px solid rgba(43, 20, 22, 0.07);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 14px 16px;
+  border: 1px solid rgba(42, 36, 40, 0.08);
 }
 .ol-stat-num {
-  font-family: "Constantia", "Georgia", serif;
   font-size: 26px;
   font-weight: 700;
-  color: #2b1c1e;
+  color: #2a2428;
 }
 .ol-stat-cap {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: #9d2a3f;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b44862;
 }
 .ol-person {
-  background: #fffdf8;
-  border-radius: 10px;
-  padding: 9px 12px;
-  border: 1px solid rgba(43, 20, 22, 0.07);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(42, 36, 40, 0.08);
 }
 .ol-panel {
-  background: #fffdf8;
-  border-radius: 12px;
+  background: #ffffff;
+  border-radius: 14px;
   padding: 16px 18px;
-  border: 1px solid rgba(43, 20, 22, 0.07);
+  border: 1px solid rgba(42, 36, 40, 0.08);
 }
 
 .ol-rank-name {
-  font-family: "Constantia", "Georgia", serif;
   font-size: 24px;
   font-weight: 700;
-  color: #2b1c1e;
+  color: #2a2428;
 }
 .ol-xp-num {
-  font-family: "Constantia", "Georgia", serif;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 700;
-  color: #9d2a3f;
+  color: #b44862;
 }
 .ol-badge {
-  background: #fffdf8;
-  border-radius: 10px;
+  background: #ffffff;
+  border-radius: 12px;
   padding: 10px 12px;
-  border: 1px solid rgba(43, 20, 22, 0.07);
+  border: 1px solid rgba(42, 36, 40, 0.08);
 }
-.ol-badge.locked { opacity: 0.5; }
+.ol-badge.locked { opacity: 0.55; }
 .ol-badge-title {
-  font-family: "Constantia", "Georgia", serif;
   font-size: 14px;
   font-weight: 700;
-  color: #2b1c1e;
+  color: #2a2428;
 }
-.ol-badge-detail { color: #8a7669; font-size: 12px; }
-.ol-bonus { color: #b8863b; font-weight: 700; }
+.ol-badge-detail { color: #6f656b; font-size: 12px; }
+.ol-bonus { color: #9a6b2f; font-weight: 700; }
 
 .ol-login-bg {
-  background-image: linear-gradient(150deg, #2a1216 0%, #4a1a24 55%, #6d2130 100%);
+  background-image: linear-gradient(165deg, #fbf7f5 0%, #f8e8ed 48%, #f3efe6 100%);
 }
 .ol-login-card {
-  background: #fffdf8;
+  background: #ffffff;
   border-radius: 18px;
   padding: 26px 26px 24px;
-  box-shadow: 0 18px 40px rgba(20, 6, 8, 0.35);
+  border: 1px solid rgba(42, 36, 40, 0.08);
+  box-shadow: 0 16px 40px rgba(42, 36, 40, 0.08);
 }
-.ol-login-card .ol-kicker { color: #9d2a3f; }
-.ol-login-card .ol-display { color: #2b1c1e; }
 .ol-seg {
   background: transparent;
   border-radius: 999px;
   padding: 6px 14px;
-  font-weight: 700;
+  font-weight: 600;
 }
-.ol-seg label { color: #8a7669; }
-.ol-seg:checked {
-  background: #2a1216;
-  color: #f1e4d6;
-}
-.ol-seg:checked label { color: #f1e4d6; }
+.ol-seg label { color: #6f656b; }
+.ol-seg:checked { background: #f8e8ed; }
+.ol-seg:checked label { color: #9a3450; }
 .ol-scroll-card {
-  background: #fffdf8;
+  background: #ffffff;
   border-radius: 10px;
+  border: 1px solid rgba(42, 36, 40, 0.08);
 }
 """
 
@@ -321,7 +295,7 @@ def alert(parent, heading, body=""):
 
 def confirm(parent, heading, body, on_yes):
     dialog = Adw.AlertDialog(heading=heading, body=body)
-    dialog.add_response("cancel", "Не надо")
+    dialog.add_response("cancel", "Отмена")
     dialog.add_response("yes", "Да")
     dialog.set_response_appearance("yes", Adw.ResponseAppearance.DESTRUCTIVE)
     dialog.set_default_response("cancel")
@@ -416,13 +390,24 @@ def meta_box(rows):
     return box
 
 
+def _row_stamp(values):
+    for item in values[2:-1]:
+        text = str(item)
+        if len(text) >= 10 and text[4:5] == "-" and text[7:8] == "-":
+            return f"{text[8:10]}.{text[5:7]}"
+    parts = [part[0] for part in str(values[1]).replace("«", "").replace("»", "").split() if part[:1].isalpha()]
+    letters = "".join(parts[:2]).upper()
+    return letters or "•"
+
+
 class StripRow(Gtk.ListBoxRow):
     def __init__(self, values):
         super().__init__()
         self.values = tuple(values)
+        self.record_id = values[0]
         box = Gtk.Box(spacing=12)
         box.add_css_class("ol-strip")
-        stamp = Gtk.Label(label=str(values[0]))
+        stamp = Gtk.Label(label=_row_stamp(self.values))
         stamp.add_css_class("ol-stamp")
         stamp.set_valign(Gtk.Align.CENTER)
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, hexpand=True)
@@ -501,13 +486,13 @@ class UserDialog(Adw.Window):
 
         access = Adw.PreferencesGroup(
             title="Доступ",
-            description="Стиль и площадка педагога учитываются, когда заявка назначается сама.",
+            description="Стиль и зал педагога учитываются, когда заявка назначается сама.",
         )
         self.role = Adw.ComboRow(title="Роль")
         self.role.set_model(Gtk.StringList.new([db.ROLE_RU[item] for item in ROLE_ORDER]))
         self.style = Adw.ComboRow(title="Стиль")
         self.style.set_model(Gtk.StringList.new([db.STYLE_RU[item] for item in db.STYLES]))
-        self.branch = Adw.ComboRow(title="Площадка")
+        self.branch = Adw.ComboRow(title="Зал")
         self.branch.set_model(Gtk.StringList.new([db.BRANCH_RU[item] for item in db.BRANCHES]))
         self.active = Adw.SwitchRow(title="Активен", active=True)
         access.add(self.role)
@@ -756,7 +741,7 @@ class RequestDialog(Adw.Window):
             f"{db.STYLE_RU[request['style']]} · {db.BRANCH_RU[request['branch']]} · "
             f"{db.PRIORITY_RU[request['priority']]}\n"
             f"Ученик: {request['student_name']} · Педагог: {teacher}\n"
-            f"Людей: {request['people']} · Дата: {when} · Создана: {request['created_at']}"
+            f"Человек: {request['people']} · Дата: {when} · Создана: {request['created_at']}"
         )
         self.desc.set_text(request["description"] or "Без описания")
         open_request = request["status"] in ("new", "assigned")
@@ -903,14 +888,10 @@ class ClassDialog(Adw.Window):
         self.desc_card, self.desc = card_label("")
         body.append(self.desc_card)
 
-        self.book_box = Gtk.Box(spacing=8)
-        self.people = int_spin(1, 20, 1)
-        self.book_btn = Gtk.Button(label="Записаться")
+        self.book_btn = Gtk.Button(label="Записаться", halign=Gtk.Align.START)
         self.book_btn.add_css_class("suggested-action")
         self.book_btn.connect("clicked", lambda *_: self._book())
-        self.book_box.append(self.people)
-        self.book_box.append(self.book_btn)
-        body.append(self.book_box)
+        body.append(self.book_btn)
 
         self.cancel_booking_btn = Gtk.Button(label="Снять мою запись")
         self.cancel_booking_btn.connect(
@@ -920,9 +901,9 @@ class ClassDialog(Adw.Window):
         body.append(self.cancel_booking_btn)
 
         self.manage_box = Gtk.Box(spacing=8)
-        complete = Gtk.Button(label="Занятие прошло")
+        complete = Gtk.Button(label="Отметить посещение")
         complete.add_css_class("suggested-action")
-        complete.connect("clicked", lambda *_: self._class_status("completed"))
+        complete.connect("clicked", lambda *_: self._open_attendance())
         cancel = Gtk.Button(label="Отменить занятие")
         cancel.connect(
             "clicked",
@@ -937,7 +918,31 @@ class ClassDialog(Adw.Window):
         self.manage_box.append(cancel)
         body.append(self.manage_box)
 
-        self.people_group = Adw.PreferencesGroup(title="Кто записан")
+        self.attend_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.attend_box.add_css_class("ol-panel")
+        attend_hint = Gtk.Label(
+            xalign=0,
+            wrap=True,
+            label="Отметьте, кто был в зале. Опыт получат только они, остальные будут в журнале как «не пришёл».",
+        )
+        attend_hint.add_css_class("ol-meta")
+        self.attend_checks = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        attend_actions = Gtk.Box(spacing=8)
+        save_attendance = Gtk.Button(label="Закрыть занятие")
+        save_attendance.add_css_class("suggested-action")
+        save_attendance.connect("clicked", lambda *_: self._save_attendance())
+        back = Gtk.Button(label="Назад")
+        back.connect("clicked", lambda *_: self._show_attendance(False))
+        attend_actions.append(save_attendance)
+        attend_actions.append(back)
+        self.attend_box.append(attend_hint)
+        self.attend_box.append(self.attend_checks)
+        self.attend_box.append(attend_actions)
+        self.attend_box.set_visible(False)
+        self._checks = []
+        body.append(self.attend_box)
+
+        self.people_group = Adw.PreferencesGroup(title="Журнал занятия")
         self.people_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.people_group.add(self.people_box)
         body.append(self.people_group)
@@ -970,16 +975,14 @@ class ClassDialog(Adw.Window):
         self.desc.set_text(lesson["description"] or "Без описания")
         mine = db.confirmed_enrollment(lesson["id"], user["id"]) if user["role"] == "student" else None
         can_book = user["role"] == "student" and lesson["status"] == "open" and mine is None and lesson["seats_left"] > 0
-        self.book_box.set_visible(can_book)
-        if can_book:
-            self.people.set_range(1, max(1, min(8, int(lesson["seats_left"]))))
-            self.people.set_value(1)
+        self.book_btn.set_visible(can_book)
         self.cancel_booking_btn.set_visible(mine is not None)
         self._my_enrollment = mine
-        can_manage = lesson["status"] in ("open", "full") and (
+        self._can_manage = lesson["status"] in ("open", "full") and (
             user["role"] == "admin" or (user["role"] == "teacher" and lesson["teacher_id"] == user["id"])
         )
-        self.manage_box.set_visible(can_manage)
+        self.attend_box.set_visible(False)
+        self.manage_box.set_visible(self._can_manage)
         self.people_group.set_visible(
             user["role"] == "admin" or (user["role"] == "teacher" and lesson["teacher_id"] == user["id"])
         )
@@ -1003,13 +1006,13 @@ class ClassDialog(Adw.Window):
         for row in rows:
             self.people_box.append(
                 Adw.ActionRow(
-                    title=f"{row['student_name']} · {row['people']} чел.",
+                    title=row["student_name"],
                     subtitle=db.ENROLL_STATUS_RU[row["status"]],
                 )
             )
 
     def _book(self):
-        enrollment_id, error = db.enroll(self.class_id, self.parent_window.user["id"], int(self.people.get_value()))
+        enrollment_id, error = db.enroll(self.class_id, self.parent_window.user["id"], 1)
         if error:
             alert(self, "Не записались", error)
             return
@@ -1028,8 +1031,40 @@ class ClassDialog(Adw.Window):
         self.on_changed()
         self.parent_window.notify(message)
 
-    def _class_status(self, status):
-        ok, message = db.set_class_status(self.class_id, status, self.parent_window.user["id"])
+    def _show_attendance(self, visible):
+        self.attend_box.set_visible(visible)
+        self.manage_box.set_visible(self._can_manage and not visible)
+
+    def _open_attendance(self):
+        rows = [
+            row
+            for row in db.list_enrollments(class_id=self.class_id)
+            if row["status"] == "confirmed"
+        ]
+        if not rows:
+            self._class_status("completed")
+            return
+        clear_box(self.attend_checks)
+        self._checks = []
+        for row in rows:
+            check = Gtk.CheckButton(label=row["student_name"])
+            check.set_active(True)
+            check.enrollment_id = row["id"]
+            self._checks.append(check)
+            self.attend_checks.append(check)
+        self._show_attendance(True)
+
+    def _save_attendance(self):
+        present = [check.enrollment_id for check in self._checks if check.get_active()]
+        self._class_status("completed", present)
+
+    def _class_status(self, status, present_ids=None):
+        ok, message = db.set_class_status(
+            self.class_id,
+            status,
+            self.parent_window.user["id"],
+            present_ids,
+        )
         if not ok:
             alert(self, "Не удалось", message)
             return
@@ -1079,7 +1114,7 @@ class ClassCreateDialog(Adw.Window):
         self.hours = int_spin(1, 6, 2)
         self.price = int_spin(100, 100_000, 1200, 100)
         self.capacity = int_spin(1, 30, 10)
-        form.append(self._pair("Стиль", self.style, "Площадка", self.branch))
+        form.append(self._pair("Стиль", self.style, "Зал", self.branch))
         form.append(self._pair("Часы", self.hours, "Мест", self.capacity))
         price_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         price_box.append(field_label("Цена, ₽"))
@@ -1417,7 +1452,7 @@ class ListPage(Gtk.Box):
         row = self.list.get_selected_row()
         if row is None:
             return None
-        return row.values[0]
+        return row.record_id
 
     def _fill(self, rows, keep=None):
         clear_box(self.list)
@@ -1456,10 +1491,10 @@ class OverviewPage(Gtk.ScrolledWindow):
         about = Gtk.Label(
             xalign=0,
             wrap=True,
-            label=(
-                "Заявка уходит педагогу сама: сначала совпавший стиль, потом площадка, "
-                "затем оценка учеников и короткая очередь. На карточке занятия виден опыт зала."
-            ),
+                label=(
+                    "Свободные заявки уходят педагогу сами: сначала совпавший стиль, потом зал, "
+                    "затем оценка учеников и короткая очередь. Опыт начисляется за посещённые занятия."
+                ),
         )
         about.add_css_class("ol-meta")
         box.append(about)
@@ -1507,7 +1542,7 @@ class OverviewPage(Gtk.ScrolledWindow):
                 card.add_css_class("ol-stat")
                 value = Gtk.Label(label="0", xalign=0)
                 value.add_css_class("ol-stat-num")
-                title = Gtk.Label(label=caption.upper(), xalign=0)
+                title = Gtk.Label(label=caption, xalign=0)
                 title.add_css_class("ol-stat-cap")
                 card.append(value)
                 card.append(title)
@@ -1625,8 +1660,8 @@ class UsersPage(ListPage):
             rows.append(
                 (
                     user["id"],
-                    user["login"],
                     user["full_name"],
+                    user["login"],
                     db.ROLE_RU[user["role"]],
                     db.BRANCH_RU[user["branch"]],
                     style,
@@ -1790,9 +1825,9 @@ class NewRequestPage(Gtk.Box):
         self.branch = LabeledDrop(list(db.BRANCH_RU.items()))
         self.priority = LabeledDrop(list(db.PRIORITY_RU.items()))
         self.priority.set_value("normal")
-        self.people = int_spin(1, 12, 2)
-        form.append(self._pair("Стиль", self.style, "Площадка", self.branch))
-        form.append(self._pair("Приоритет", self.priority, "Людей", self.people))
+        self.people = int_spin(1, 8, 1)
+        form.append(self._pair("Стиль", self.style, "Зал", self.branch))
+        form.append(self._pair("Приоритет", self.priority, "Человек на уроке", self.people))
         self.error = Gtk.Label(xalign=0, wrap=True, visible=False)
         self.error.add_css_class("ol-error")
         form.append(self.error)
@@ -1986,8 +2021,9 @@ class EnrollmentsPage(ListPage):
         self.filter = LabeledDrop(
             (
                 ("all", "Все"),
-                ("confirmed", "Действующие"),
-                ("completed", "Отработанные"),
+                ("confirmed", "Записаны"),
+                ("completed", "Были"),
+                ("missed", "Не пришли"),
                 ("cancelled", "Снятые"),
             )
         )
@@ -2029,8 +2065,7 @@ class EnrollmentsPage(ListPage):
                     row["class_date"],
                     row["student_name"],
                     row["teacher_name"],
-                    row["people"],
-                    money(row["price"] * row["people"]),
+                    money(row["price"]),
                     db.ENROLL_STATUS_RU[row["status"]],
                 )
             )
@@ -2355,6 +2390,9 @@ class ProgressPage(Gtk.ScrolledWindow):
 
     def reload(self):
         user = db.get_user(self.window.user["id"]) or self.window.user
+        self.window.user = user
+        if self.window.shell is not None:
+            self.window.shell.sync_identity()
         rank = db.rank_of(user["xp"])
         self.rank_name.set_text(rank["name"])
         self.xp_num.set_text(f"{rank['xp']} XP")
@@ -2412,47 +2450,60 @@ class ProgressPage(Gtk.ScrolledWindow):
 
 class ShellView(Gtk.Box):
     def __init__(self, window):
-        super().__init__(orientation=Gtk.Orientation.HORIZONTAL)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL)
         self.window = window
         self._switching = False
         self._navs = []
 
-        sidebar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        sidebar.add_css_class("ol-side")
-        sidebar.set_size_request(236, -1)
+        top = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        top.add_css_class("ol-top")
+
+        bar = Gtk.Box(spacing=12)
         brand_row = Gtk.Box(spacing=10)
         brand_row.set_valign(Gtk.Align.CENTER)
         brand_row.append(logo_image(44))
         brand = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        kicker = Gtk.Label(label="СТУДИЯ ТАНЦА", xalign=0)
+        kicker = Gtk.Label(label="Студия танца", xalign=0)
         kicker.add_css_class("ol-tagline")
         word = Gtk.Label(label="Олеся", xalign=0)
         word.add_css_class("ol-wordmark")
-        brand.append(kicker)
         brand.append(word)
+        brand.append(kicker)
         brand_row.append(brand)
-        sidebar.append(brand_row)
+        bar.append(brand_row)
 
-        role_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        spacer = Gtk.Box()
+        spacer.set_hexpand(True)
+        bar.append(spacer)
+
+        role_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         role_box.add_css_class("ol-role")
-        self.identity_name = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
+        role_box.set_valign(Gtk.Align.CENTER)
+        self.identity_name = Gtk.Label(xalign=1, ellipsize=Pango.EllipsizeMode.END, max_width_chars=22)
         self.identity_name.add_css_class("ol-role-name")
-        self.identity_meta = Gtk.Label(xalign=0)
+        self.identity_meta = Gtk.Label(xalign=1, ellipsize=Pango.EllipsizeMode.END, max_width_chars=28)
         self.identity_meta.add_css_class("ol-role-meta")
         role_box.append(self.identity_name)
         role_box.append(self.identity_meta)
-        sidebar.append(role_box)
+        bar.append(role_box)
 
-        self.nav_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        sidebar.append(self.nav_box)
-        spacer = Gtk.Box()
-        spacer.set_vexpand(True)
-        sidebar.append(spacer)
         logout = Gtk.Button(label="Выйти")
         logout.add_css_class("ol-quiet")
+        logout.set_valign(Gtk.Align.CENTER)
         logout.connect("clicked", lambda *_: window.show_login())
-        sidebar.append(logout)
-        self.append(sidebar)
+        bar.append(logout)
+        top.append(bar)
+
+        self.nav_box = Gtk.FlowBox()
+        self.nav_box.add_css_class("ol-navrow")
+        self.nav_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.nav_box.set_homogeneous(False)
+        self.nav_box.set_max_children_per_line(12)
+        self.nav_box.set_min_children_per_line(1)
+        self.nav_box.set_column_spacing(4)
+        self.nav_box.set_row_spacing(4)
+        top.append(self.nav_box)
+        self.append(top)
 
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         content.add_css_class("ol-content")
@@ -2482,7 +2533,6 @@ class ShellView(Gtk.Box):
             button = Gtk.ToggleButton(label=title)
             button.add_css_class("flat")
             button.add_css_class("ol-nav")
-            button.set_can_shrink(False)
             button.connect("toggled", self._on_nav, key, title, hint)
             self._navs.append(button)
             self.nav_box.append(button)
@@ -2493,34 +2543,34 @@ class ShellView(Gtk.Box):
         window = self.window
         if role == "admin":
             return (
-                ("overview", "Сводка", "КАК ЖИВЁТ СТУДИЯ", lambda: OverviewPage(window)),
-                ("users", "Люди", "УЧЕНИКИ, ПЕДАГОГИ, КОСТЮМЕРЫ", lambda: UsersPage(window)),
-                ("requests", "Заявки", "КОМУ ДОСТАНЕТСЯ УРОК", lambda: RequestsPage(window, "all")),
-                ("classes", "Занятия", "РАСПИСАНИЕ ЗАЛА", lambda: ClassesPage(window, "all")),
-                ("enrollments", "Записи", "КТО УЖЕ В ДЕЛЕ", lambda: EnrollmentsPage(window, "all")),
-                ("orders", "Выдачи", "ЖУРНАЛ КОСТЮМЕРНОЙ", lambda: OrdersPage(window, "all")),
-                ("products", "Костюмерная", "ЧТО ВЫДАЁТСЯ", lambda: ProductsPage(window, "all")),
+                ("overview", "Сводка", "Как живёт студия", lambda: OverviewPage(window)),
+                ("users", "Люди", "Ученики, педагоги и костюмеры", lambda: UsersPage(window)),
+                ("requests", "Заявки", "Индивидуальные уроки", lambda: RequestsPage(window, "all")),
+                ("classes", "Занятия", "Расписание залов", lambda: ClassesPage(window, "all")),
+                ("enrollments", "Журнал", "Кто записан и кто был", lambda: EnrollmentsPage(window, "all")),
+                ("orders", "Выдачи", "Запросы в костюмерную", lambda: OrdersPage(window, "all")),
+                ("products", "Костюмерная", "Костюмы, обувь и реквизит", lambda: ProductsPage(window, "all")),
             )
         if role == "teacher":
             return (
-                ("free", "Свободные", "ЗАЯВКИ БЕЗ ПЕДАГОГА", lambda: RequestsPage(window, "free")),
-                ("queue", "Мои заявки", "ТО, ЧТО ВЫ ВЕДЁТЕ", lambda: RequestsPage(window, "queue")),
-                ("classes", "Мои занятия", "ВАШЕ РАСПИСАНИЕ", lambda: ClassesPage(window, "mine")),
-                ("enrollments", "Ученики", "КТО ЗАПИСАН", lambda: EnrollmentsPage(window, "teacher")),
+                ("free", "Свободные", "Заявки без педагога", lambda: RequestsPage(window, "free")),
+                ("queue", "Мои уроки", "Заявки, которые вы ведёте", lambda: RequestsPage(window, "queue")),
+                ("classes", "Занятия", "Ваше расписание", lambda: ClassesPage(window, "mine")),
+                ("enrollments", "Журнал", "Кто записан и кто был", lambda: EnrollmentsPage(window, "teacher")),
             )
         if role == "atelier":
             return (
-                ("products", "Костюмерная", "ЧТО ВЫДАЁТСЯ", lambda: ProductsPage(window, "mine")),
-                ("orders", "Выдачи", "КОМУ ОТДАТЬ", lambda: OrdersPage(window, "incoming")),
+                ("products", "Костюмерная", "Что можно выдать", lambda: ProductsPage(window, "mine")),
+                ("orders", "Выдачи", "Принять, выдать, принять возврат", lambda: OrdersPage(window, "incoming")),
             )
         return (
-            ("classes", "Афиша", "КУДА ЗАПИСАТЬСЯ", lambda: ClassesPage(window, "catalog")),
-            ("enrollments", "Мои записи", "УЖЕ ВЫБРАННЫЕ ДНИ", lambda: EnrollmentsPage(window, "mine")),
-            ("new", "Заявка", "ПЕДАГОГ ПОДБЕРЁТСЯ САМ", lambda: NewRequestPage(window)),
-            ("requests", "Мои заявки", "ПЕРЕПИСКА С ПЕДАГОГОМ", lambda: RequestsPage(window, "mine")),
-            ("market", "Костюмерная", "ФОРМА, ОБУВЬ И РЕКВИЗИТ", lambda: ProductsPage(window, "market")),
-            ("orders", "Мои выдачи", "ЧТО ВЫДАНО И ВОЗВРАТ", lambda: OrdersPage(window, "mine")),
-            ("progress", "Мой опыт", "РАНГ, ЗНАЧКИ И XP", lambda: ProgressPage(window)),
+            ("classes", "Расписание", "Куда можно записаться", lambda: ClassesPage(window, "catalog")),
+            ("enrollments", "Мои записи", "Ваши занятия", lambda: EnrollmentsPage(window, "mine")),
+            ("new", "Новый урок", "Индивидуальная заявка педагогу", lambda: NewRequestPage(window)),
+            ("requests", "Мои уроки", "Статус и переписка", lambda: RequestsPage(window, "mine")),
+            ("market", "Костюмерная", "Костюмы, обувь и реквизит", lambda: ProductsPage(window, "market")),
+            ("orders", "Мои выдачи", "Что взяли и что нужно вернуть", lambda: OrdersPage(window, "mine")),
+            ("progress", "Прогресс", "Ступень, значки и опыт", lambda: ProgressPage(window)),
         )
 
     def _on_nav(self, button, key, title, hint):
@@ -2547,11 +2597,11 @@ class ShellView(Gtk.Box):
     def sync_identity(self):
         user = self.window.user
         self.identity_name.set_text(user["full_name"])
-        text = db.ROLE_RU[user["role"]].upper()
+        text = db.ROLE_RU[user["role"]]
         if user["role"] in ("teacher", "atelier"):
-            text = f"{text}  ·  {db.BRANCH_RU[user['branch']].upper()}"
+            text = f"{text} · {db.BRANCH_RU[user['branch']]}"
         elif user["role"] == "student":
-            text = f"{text}  ·  {db.rank_of(user['xp'])['name'].upper()}"
+            text = f"{text} · {db.rank_of(user['xp'])['name']}"
         self.identity_meta.set_text(text)
 
     def reload_visible(self):
@@ -2573,9 +2623,9 @@ class LoginView(Gtk.CenterBox):
         card.add_css_class("ol-login-card")
         card.set_size_request(380, -1)
 
-        mark = logo_image(74)
+        mark = logo_image(88)
         mark.set_halign(Gtk.Align.CENTER)
-        kicker = Gtk.Label(label="СТУДИЯ ТАНЦА · ОЛЕСЯ")
+        kicker = Gtk.Label(label="Студия танца «Олеся»")
         kicker.add_css_class("ol-kicker")
         kicker.set_halign(Gtk.Align.CENTER)
         self.form_title = Gtk.Label(label="С возвращением")
@@ -2725,7 +2775,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.add_css_class("ol-app")
         self.toast = Adw.ToastOverlay()
         self.toolbar = Adw.ToolbarView()
-        self.heading = Gtk.Label(label="")
+        self.heading = Gtk.Label(label="Студия «Олеся»")
+        self.heading.add_css_class("ol-heading")
         header = Adw.HeaderBar()
         header.add_css_class("flat")
         header.add_css_class("ol-titlebar")

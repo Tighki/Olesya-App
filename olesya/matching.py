@@ -3,8 +3,8 @@
 Балл активного педагога:
     * стиль совпал с заявкой: +40;
     * универсальный педагог: +12;
-    * та же площадка: +18;
-    * педагог с площадкой «любая»: +8;
+    * тот же зал: +18;
+    * педагог с залом «любой»: +8;
     * средняя оценка × 4, а если оценок нет — нейтральные 4,2 × 4;
     * за каждую заявку в работе снимаются баллы, у срочной штраф больше;
     * педагог с четырьмя и более активными заявками не выбирается, пока есть кто-то ниже предела.
@@ -50,12 +50,12 @@ def score_teacher(teacher, style, branch, priority, load):
 
     if branch != "other" and teacher["branch"] == branch:
         score += BRANCH_BONUS
-        reasons.append(f"та же площадка +{BRANCH_BONUS}")
+        reasons.append(f"тот же зал +{BRANCH_BONUS}")
     elif teacher["branch"] == "other":
         score += ANY_BRANCH_BONUS
-        reasons.append(f"работает на разных площадках +{ANY_BRANCH_BONUS}")
+        reasons.append(f"работает в разных залах +{ANY_BRANCH_BONUS}")
     else:
-        reasons.append("другая площадка")
+        reasons.append("другой зал")
 
     rating = _rating(teacher)
     rating_points = rating * RATING_WEIGHT
