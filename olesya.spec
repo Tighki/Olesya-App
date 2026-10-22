@@ -10,8 +10,10 @@ datas = [("olesya/assets/logo.png", "assets")]
 hiddenimports = [
     "olesya",
     "olesya.db",
+    "olesya.mariadb_conn",
     "olesya.matching",
     "olesya.ui",
+    "pymysql",
 ]
 runtime_hooks = []
 

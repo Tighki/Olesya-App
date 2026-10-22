@@ -1,14 +1,15 @@
-"""SQLite: люди, заявки, занятия, записи, гардероб, опыт и значки.
+"""MariaDB: люди, заявки, занятия, записи, гардероб, опыт и значки.
 
 Пароли хранятся как хеш. Повторный запуск не дублирует демонстрационные строки.
+Переменные: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (по умолчанию olesya).
 """
 
 import hashlib
 import os
 import re
-import sqlite3
-import sys
 from datetime import datetime
+
+from olesya.mariadb_conn import IntegrityError, connect
 
 ROLES = ("admin", "teacher", "atelier", "student")
 STYLES = ("ballet", "contemporary", "hiphop", "latin", "ballroom", "kids", "other")
@@ -117,32 +118,6 @@ XP_ORDER = 30
 XP_REVIEW = 20
 
 
-def _app_dir():
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-def db_path():
-    override = os.environ.get("OLESYA_DB")
-    if override:
-        parent = os.path.dirname(os.path.abspath(override))
-        if parent:
-            os.makedirs(parent, exist_ok=True)
-        return override
-    root = _app_dir()
-    data_dir = os.path.join(root, "data")
-    os.makedirs(data_dir, exist_ok=True)
-    return os.path.join(data_dir, "olesya.db")
-
-
-def connect():
-    conn = sqlite3.connect(db_path())
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
-
-
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -204,8 +179,8 @@ def init_db():
         conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS users (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                login       TEXT NOT NULL UNIQUE,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
+                login       VARCHAR(64) NOT NULL UNIQUE,
                 password    TEXT NOT NULL,
                 full_name   TEXT NOT NULL,
                 role        TEXT NOT NULL DEFAULT 'student'
@@ -219,7 +194,7 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS requests (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              INT AUTO_INCREMENT PRIMARY KEY,
                 title           TEXT NOT NULL,
                 description     TEXT NOT NULL DEFAULT '',
                 style           TEXT NOT NULL DEFAULT 'other',
@@ -233,12 +208,8 @@ def init_db():
                 created_at      TEXT NOT NULL
             );
 
-            CREATE UNIQUE INDEX IF NOT EXISTS ux_open_request
-            ON requests(student_id, title)
-            WHERE status IN ('new', 'assigned');
-
             CREATE TABLE IF NOT EXISTS classes (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                id              INT AUTO_INCREMENT PRIMARY KEY,
                 title           TEXT NOT NULL,
                 description     TEXT NOT NULL DEFAULT '',
                 style           TEXT NOT NULL,
@@ -253,7 +224,7 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS enrollments (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
                 class_id    INTEGER NOT NULL REFERENCES classes(id),
                 student_id  INTEGER NOT NULL REFERENCES users(id),
                 people      INTEGER NOT NULL CHECK (people > 0),
@@ -261,12 +232,8 @@ def init_db():
                 created_at  TEXT NOT NULL
             );
 
-            CREATE UNIQUE INDEX IF NOT EXISTS ux_enrollment_active
-            ON enrollments(class_id, student_id)
-            WHERE status = 'confirmed';
-
             CREATE TABLE IF NOT EXISTS products (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                id           INT AUTO_INCREMENT PRIMARY KEY,
                 atelier_id   INTEGER NOT NULL REFERENCES users(id),
                 name         TEXT NOT NULL,
                 description  TEXT NOT NULL DEFAULT '',
@@ -280,7 +247,7 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS orders (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                id           INT AUTO_INCREMENT PRIMARY KEY,
                 student_id   INTEGER NOT NULL REFERENCES users(id),
                 atelier_id   INTEGER NOT NULL REFERENCES users(id),
                 status       TEXT NOT NULL DEFAULT 'new',
@@ -289,7 +256,7 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS order_items (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
                 order_id    INTEGER NOT NULL REFERENCES orders(id),
                 product_id  INTEGER NOT NULL REFERENCES products(id),
                 name        TEXT NOT NULL,
@@ -298,18 +265,18 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS reviews (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
                 author_id   INTEGER NOT NULL REFERENCES users(id),
-                target_kind TEXT NOT NULL,
+                target_kind VARCHAR(16) NOT NULL,
                 target_id   INTEGER NOT NULL,
                 rating      INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
-                body        TEXT NOT NULL DEFAULT '',
-                created_at  TEXT NOT NULL,
+                body        TEXT NOT NULL,
+                created_at  VARCHAR(19) NOT NULL,
                 UNIQUE (author_id, target_kind, target_id)
             );
 
             CREATE TABLE IF NOT EXISTS messages (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
                 request_id  INTEGER NOT NULL REFERENCES requests(id),
                 user_id     INTEGER NOT NULL REFERENCES users(id),
                 body        TEXT NOT NULL,
@@ -317,8 +284,8 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS history (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                entity_kind TEXT NOT NULL,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
+                entity_kind VARCHAR(32) NOT NULL,
                 entity_id   INTEGER NOT NULL,
                 user_id     INTEGER,
                 action      TEXT NOT NULL,
@@ -326,19 +293,19 @@ def init_db():
             );
 
             CREATE TABLE IF NOT EXISTS xp_log (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                id          INT AUTO_INCREMENT PRIMARY KEY,
                 user_id     INTEGER NOT NULL REFERENCES users(id),
-                source      TEXT NOT NULL,
+                source      VARCHAR(128) NOT NULL,
                 amount      INTEGER NOT NULL,
                 reason      TEXT NOT NULL,
-                created_at  TEXT NOT NULL,
+                created_at  VARCHAR(19) NOT NULL,
                 UNIQUE (user_id, source)
             );
 
             CREATE TABLE IF NOT EXISTS user_badges (
                 user_id     INTEGER NOT NULL REFERENCES users(id),
-                code        TEXT NOT NULL,
-                created_at  TEXT NOT NULL,
+                code        VARCHAR(32) NOT NULL,
+                created_at  VARCHAR(19) NOT NULL,
                 PRIMARY KEY (user_id, code)
             );
 
@@ -364,7 +331,11 @@ def init_db():
 
 
 def _migrate(conn):
-    columns = {row[1] for row in conn.execute("PRAGMA table_info(products)")}
+    rows = conn.execute(
+        "SELECT COLUMN_NAME AS name FROM INFORMATION_SCHEMA.COLUMNS"
+        " WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'products'"
+    ).fetchall()
+    columns = {row["name"] for row in rows}
     if "style" not in columns:
         conn.execute("ALTER TABLE products ADD COLUMN style TEXT NOT NULL DEFAULT 'other'")
     if "size" not in columns:
@@ -507,7 +478,7 @@ def _seed_demo(conn):
         _log(conn, "order", order_id, ids[student], "Запрос в костюмерную", created)
         if status in ("new", "accepted", "issued"):
             conn.execute(
-                "UPDATE products SET stock = MAX(stock - ?, 0) WHERE id = ?",
+                "UPDATE products SET stock = GREATEST(stock - ?, 0) WHERE id = ?",
                 (qty, product["id"]),
             )
         if status != "new":
@@ -982,7 +953,7 @@ def create_user(login, password, full_name, role="student", style="other", branc
                 (login, hash_password(password), full_name, role, style, branch, about, int(is_active), now()),
             )
         return True, "Пользователь создан"
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         return False, "Логин уже занят"
     finally:
         conn.close()
@@ -1168,7 +1139,7 @@ def create_request(title, description, style, branch, people, preferred_date, pr
             request_id = cur.lastrowid
             _log(conn, "request", request_id, student_id, "Заявка создана")
         return request_id, None
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         return None, "Такая заявка уже открыта"
     finally:
         conn.close()
@@ -1542,7 +1513,7 @@ def enroll(class_id, student_id, people):
             _sync_class_capacity(conn, class_id, student_id)
             _sync_badges(conn, student_id)
         return enrollment_id, None
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         return None, "Вы уже записаны на это занятие"
     finally:
         conn.close()
@@ -1792,7 +1763,7 @@ def create_order(student_id, product_id, qty):
 
 _ORDER_SQL = (
     "SELECT o.*, s.full_name AS student_name, a.full_name AS atelier_name,"
-    " (SELECT group_concat(oi.name || ' × ' || oi.qty, ', ') FROM order_items oi WHERE oi.order_id = o.id) AS items_label"
+    " (SELECT GROUP_CONCAT(CONCAT(oi.name, ' × ', oi.qty) SEPARATOR ', ') FROM order_items oi WHERE oi.order_id = o.id) AS items_label"
     " FROM orders o"
     " JOIN users s ON s.id = o.student_id"
     " JOIN users a ON a.id = o.atelier_id"
@@ -1969,7 +1940,7 @@ def add_review(author_id, kind, target_id, rating, body):
         if gained:
             return True, f"Оценка сохранена. +{gained} XP"
         return True, "Оценка сохранена"
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         return False, "Вы уже оставляли оценку"
     finally:
         conn.close()
