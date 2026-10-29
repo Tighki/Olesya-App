@@ -500,6 +500,31 @@ class UserDialog(Adw.Window):
         access.add(self.branch)
         access.add(self.active)
         page.add(access)
+
+        self.xp_spin = None
+        self.badge_group = None
+        if (
+            record
+            and record["role"] == "student"
+            and parent.user["role"] == "admin"
+        ):
+            progress = Adw.PreferencesGroup(title="Опыт ученика")
+            xp_row = Adw.ActionRow(title="Опыт (XP)")
+            self.xp_spin = int_spin(0, 1_000_000, int(record.get("xp") or 0))
+            self.xp_spin.set_valign(Gtk.Align.CENTER)
+            xp_row.add_suffix(self.xp_spin)
+            progress.add(xp_row)
+            page.add(progress)
+
+            self.badge_group = Adw.PreferencesGroup(title="Значки")
+            refresh = Gtk.Button(label="Обновить значки")
+            refresh.connect("clicked", lambda *_: self._refresh_badges())
+            refresh_row = Adw.ActionRow(title="Синхронизация")
+            refresh_row.add_suffix(refresh)
+            self.badge_group.add(refresh_row)
+            page.add(self.badge_group)
+            self._show_badges()
+
         toolbar.set_content(page)
         self.set_content(toolbar)
 
@@ -516,6 +541,38 @@ class UserDialog(Adw.Window):
             self.role.set_selected(ROLE_ORDER.index("student"))
             self.style.set_selected(db.STYLES.index("other"))
             self.branch.set_selected(db.BRANCHES.index("other"))
+
+    def _badge_rows(self):
+        if self.badge_group is None:
+            return []
+        rows = []
+        child = self.badge_group.get_first_child()
+        while child is not None:
+            if isinstance(child, Adw.ActionRow) and child.get_title() != "Синхронизация":
+                rows.append(child)
+            child = child.get_next_sibling()
+        return rows
+
+    def _show_badges(self):
+        if self.badge_group is None or self.user_id is None:
+            return
+        for row in self._badge_rows():
+            self.badge_group.remove(row)
+        for badge in db.badge_board(self.user_id):
+            state = "получен" if badge["unlocked"] else "ещё закрыт"
+            subtitle = f"{badge['detail']} · {badge['bonus']} XP · {state}"
+            self.badge_group.insert(
+                Adw.ActionRow(title=badge["title"], subtitle=subtitle),
+                1,
+            )
+
+    def _refresh_badges(self):
+        ok, message = db.refresh_user_badges(self.user_id, self.parent_window.user["id"])
+        if not ok:
+            alert(self, "Не удалось", message)
+            return
+        self._show_badges()
+        self.parent_window.notify(message)
 
     def _save(self):
         full_name = self.name.get_text().strip()
@@ -553,6 +610,23 @@ class UserDialog(Adw.Window):
         if not ok:
             alert(self, "Не сохранено", message)
             return
+        if (
+            self.user_id is not None
+            and self.xp_spin is not None
+            and role == "student"
+            and self.parent_window.user["role"] == "admin"
+        ):
+            xp_ok, xp_message = db.set_user_xp(
+                self.user_id,
+                self.parent_window.user["id"],
+                int(self.xp_spin.get_value()),
+            )
+            if not xp_ok and xp_message != "Нет изменений":
+                alert(self, "Опыт не сохранён", xp_message)
+                return
+            if xp_ok:
+                message = xp_message
+                self._show_badges()
         self.close()
         self.on_saved(self.user_id, message)
 
@@ -668,6 +742,31 @@ class RequestDialog(Adw.Window):
         self.desc_card, self.desc = card_label("")
         body.append(self.desc_card)
 
+        self.edit_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        edit_group = Adw.PreferencesGroup(title="Редактирование")
+        self.edit_title = Adw.EntryRow(title="Тема")
+        self.edit_date = Adw.EntryRow(title="Желаемая дата")
+        edit_group.add(self.edit_title)
+        edit_group.add(self.edit_date)
+        self.edit_box.append(edit_group)
+        self.edit_box.append(field_label("Описание"))
+        self.edit_description, edit_desc_scroll = text_view(100)
+        self.edit_box.append(edit_desc_scroll)
+        styles = [(key, db.STYLE_RU[key]) for key in db.STYLES if key != "other"]
+        branches = [(key, db.BRANCH_RU[key]) for key in db.BRANCHES if key != "other"]
+        self.edit_style = LabeledDrop(styles)
+        self.edit_branch = LabeledDrop(branches)
+        self.edit_priority = LabeledDrop(list(db.PRIORITY_RU.items()))
+        self.edit_people = int_spin(1, 8, 1)
+        self.edit_box.append(self._req_pair("Стиль", self.edit_style, "Зал", self.edit_branch))
+        self.edit_box.append(self._req_pair("Приоритет", self.edit_priority, "Человек", self.edit_people))
+        save_edit = Gtk.Button(label="Сохранить изменения")
+        save_edit.add_css_class("suggested-action")
+        save_edit.connect("clicked", lambda *_: self._save_edit())
+        self.edit_box.append(save_edit)
+        self.edit_box.set_visible(False)
+        body.append(self.edit_box)
+
         self.actions = Gtk.Box(spacing=8)
         self.done_btn = Gtk.Button(label="Проведено")
         self.done_btn.add_css_class("suggested-action")
@@ -726,6 +825,15 @@ class RequestDialog(Adw.Window):
         toolbar.set_content(scrolled(body))
         self.set_content(toolbar)
 
+    def _req_pair(self, left_caption, left, right_caption, right):
+        row = Gtk.Box(spacing=12)
+        for caption, widget in ((left_caption, left), (right_caption, right)):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
+            box.append(field_label(caption))
+            box.append(widget)
+            row.append(box)
+        return row
+
     def reload(self):
         request = db.get_request(self.request_id)
         if not request:
@@ -744,9 +852,21 @@ class RequestDialog(Adw.Window):
             f"Человек: {request['people']} · Дата: {when} · Создана: {request['created_at']}"
         )
         self.desc.set_text(request["description"] or "Без описания")
+        is_admin = user["role"] == "admin"
+        can_edit = is_admin and request["status"] not in ("done", "cancelled")
+        self.meta.set_visible(not can_edit)
+        self.desc_card.set_visible(not can_edit)
+        self.edit_box.set_visible(can_edit)
+        if can_edit:
+            self.edit_title.set_text(request["title"])
+            self.edit_date.set_text(request["preferred_date"] or "")
+            self.edit_description.get_buffer().set_text(request["description"] or "")
+            self.edit_style.set_value(request["style"])
+            self.edit_branch.set_value(request["branch"])
+            self.edit_priority.set_value(request["priority"])
+            self.edit_people.set_value(request["people"])
         open_request = request["status"] in ("new", "assigned")
         is_teacher = user["role"] == "teacher" and request["teacher_id"] == user["id"]
-        is_admin = user["role"] == "admin"
         self.done_btn.set_visible(is_admin or is_teacher)
         self.done_btn.set_sensitive(request["status"] == "assigned")
         can_cancel = open_request and (
@@ -757,7 +877,7 @@ class RequestDialog(Adw.Window):
         self.take_btn.set_visible(
             user["role"] == "teacher" and request["teacher_id"] is None and request["status"] == "new"
         )
-        self.admin_box.set_visible(is_admin and open_request)
+        self.admin_box.set_visible(is_admin and request["status"] not in ("done", "cancelled"))
         if self.teacher_drop is not None and request["teacher_id"] is not None:
             self.teacher_drop.set_value(request["teacher_id"])
         self.composer.set_visible(
@@ -807,6 +927,23 @@ class RequestDialog(Adw.Window):
         self.on_changed()
         if message:
             self.parent_window.notify(message)
+
+    def _save_edit(self):
+        ok, message = db.update_request(
+            self.request_id,
+            self.parent_window.user["id"],
+            title=self.edit_title.get_text(),
+            description=text_of(self.edit_description),
+            style=self.edit_style.value(),
+            branch=self.edit_branch.value(),
+            preferred_date=self.edit_date.get_text(),
+            priority=self.edit_priority.value(),
+            people=int(self.edit_people.get_value()),
+        )
+        if not ok:
+            alert(self, "Не сохранено", message)
+            return
+        self._finish(message)
 
     def _status(self, status):
         if status == "cancelled":
@@ -888,6 +1025,41 @@ class ClassDialog(Adw.Window):
         self.desc_card, self.desc = card_label("")
         body.append(self.desc_card)
 
+        self.edit_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        edit_group = Adw.PreferencesGroup(title="Редактирование")
+        self.edit_title = Adw.EntryRow(title="Название")
+        self.edit_date = Adw.EntryRow(title="Дата, ГГГГ-ММ-ДД")
+        edit_group.add(self.edit_title)
+        edit_group.add(self.edit_date)
+        self.edit_box.append(edit_group)
+        self.edit_box.append(field_label("Описание"))
+        self.edit_description, edit_desc_scroll = text_view(100)
+        self.edit_box.append(edit_desc_scroll)
+        styles = [(key, db.STYLE_RU[key]) for key in db.STYLES if key != "other"]
+        branches = [(key, db.BRANCH_RU[key]) for key in db.BRANCHES if key != "other"]
+        self.edit_style = LabeledDrop(styles)
+        self.edit_branch = LabeledDrop(branches)
+        self.edit_hours = int_spin(1, 6, 2)
+        self.edit_price = int_spin(100, 100_000, 1200, 100)
+        self.edit_capacity = int_spin(1, 30, 10)
+        self.edit_box.append(self._edit_pair("Стиль", self.edit_style, "Зал", self.edit_branch))
+        self.edit_box.append(self._edit_pair("Часы", self.edit_hours, "Мест", self.edit_capacity))
+        price_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        price_box.append(field_label("Цена, ₽"))
+        price_box.append(self.edit_price)
+        self.edit_box.append(price_box)
+        self.edit_teacher_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.edit_teacher_box.append(field_label("Педагог"))
+        self.edit_teacher = LabeledDrop([])
+        self.edit_teacher_box.append(self.edit_teacher)
+        self.edit_box.append(self.edit_teacher_box)
+        save_edit = Gtk.Button(label="Сохранить изменения")
+        save_edit.add_css_class("suggested-action")
+        save_edit.connect("clicked", lambda *_: self._save_edit())
+        self.edit_box.append(save_edit)
+        self.edit_box.set_visible(False)
+        body.append(self.edit_box)
+
         self.book_btn = Gtk.Button(label="Записаться", halign=Gtk.Align.START)
         self.book_btn.add_css_class("suggested-action")
         self.book_btn.connect("clicked", lambda *_: self._book())
@@ -954,6 +1126,15 @@ class ClassDialog(Adw.Window):
         toolbar.set_content(scrolled(body))
         self.set_content(toolbar)
 
+    def _edit_pair(self, left_caption, left, right_caption, right):
+        row = Gtk.Box(spacing=12)
+        for caption, widget in ((left_caption, left), (right_caption, right)):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
+            box.append(field_label(caption))
+            box.append(widget)
+            row.append(box)
+        return row
+
     def reload(self):
         lesson = db.get_class(self.class_id)
         if not lesson:
@@ -973,6 +1154,31 @@ class ClassDialog(Adw.Window):
             f"{money(lesson['price'])} · {lesson['duration_hours']} ч · места: {seats}"
         )
         self.desc.set_text(lesson["description"] or "Без описания")
+        can_edit = lesson["status"] in ("open", "full") and (
+            user["role"] == "admin"
+            or (user["role"] == "teacher" and lesson["teacher_id"] == user["id"])
+        )
+        self.meta.set_visible(not can_edit)
+        self.desc_card.set_visible(not can_edit)
+        self.edit_box.set_visible(can_edit)
+        if can_edit:
+            self.edit_title.set_text(lesson["title"])
+            self.edit_date.set_text(lesson["class_date"])
+            self.edit_description.get_buffer().set_text(lesson["description"] or "")
+            self.edit_style.set_value(lesson["style"])
+            self.edit_branch.set_value(lesson["branch"])
+            self.edit_hours.set_value(lesson["duration_hours"])
+            self.edit_price.set_value(lesson["price"])
+            self.edit_capacity.set_value(lesson["capacity"])
+            show_teacher = user["role"] == "admin"
+            self.edit_teacher_box.set_visible(show_teacher)
+            if show_teacher:
+                teachers = db.list_teachers(only_active=True)
+                self.edit_teacher._ids = [item["id"] for item in teachers]
+                labels = [item["full_name"] for item in teachers]
+                self.edit_teacher.set_model(Gtk.StringList.new(labels or ["—"]))
+                if lesson["teacher_id"] in self.edit_teacher._ids:
+                    self.edit_teacher.set_value(lesson["teacher_id"])
         mine = db.confirmed_enrollment(lesson["id"], user["id"]) if user["role"] == "student" else None
         can_book = user["role"] == "student" and lesson["status"] == "open" and mine is None and lesson["seats_left"] > 0
         self.book_btn.set_visible(can_book)
@@ -1004,12 +1210,31 @@ class ClassDialog(Adw.Window):
             self.people_box.append(empty)
             return
         for row in rows:
-            self.people_box.append(
-                Adw.ActionRow(
-                    title=row["student_name"],
-                    subtitle=db.ENROLL_STATUS_RU[row["status"]],
-                )
+            action = Adw.ActionRow(
+                title=row["student_name"],
+                subtitle=db.ENROLL_STATUS_RU[row["status"]],
             )
+            user = self.parent_window.user
+            if user["role"] == "admin" and row["status"] == "confirmed":
+                drop = Gtk.Button(label="Снять")
+                drop.connect(
+                    "clicked",
+                    lambda *_button, enrollment_id=row["id"]: self._cancel_enrollment_id(enrollment_id),
+                )
+                action.add_suffix(drop)
+            self.people_box.append(action)
+
+    def _cancel_enrollment_id(self, enrollment_id):
+        def apply():
+            ok, message = db.cancel_enrollment(enrollment_id, self.parent_window.user["id"])
+            if not ok:
+                alert(self, "Не удалось", message)
+                return
+            self.reload()
+            self.on_changed()
+            self.parent_window.notify(message)
+
+        confirm(self, "Снять запись?", "Место вернётся в занятие.", apply)
 
     def _book(self):
         enrollment_id, error = db.enroll(self.class_id, self.parent_window.user["id"], 1)
@@ -1026,6 +1251,30 @@ class ClassDialog(Adw.Window):
         ok, message = db.cancel_enrollment(self._my_enrollment["id"], self.parent_window.user["id"])
         if not ok:
             alert(self, "Не удалось", message)
+            return
+        self.reload()
+        self.on_changed()
+        self.parent_window.notify(message)
+
+    def _save_edit(self):
+        user = self.parent_window.user
+        fields = {
+            "title": self.edit_title.get_text(),
+            "description": text_of(self.edit_description),
+            "style": self.edit_style.value(),
+            "branch": self.edit_branch.value(),
+            "class_date": self.edit_date.get_text(),
+            "duration_hours": int(self.edit_hours.get_value()),
+            "price": int(self.edit_price.get_value()),
+            "capacity": int(self.edit_capacity.get_value()),
+        }
+        if user["role"] == "admin" and self.edit_teacher_box.get_visible():
+            teacher_id = self.edit_teacher.value()
+            if teacher_id is not None:
+                fields["teacher_id"] = teacher_id
+        ok, message = db.update_class(self.class_id, user["id"], **fields)
+        if not ok:
+            alert(self, "Не сохранено", message)
             return
         self.reload()
         self.on_changed()
@@ -1120,6 +1369,15 @@ class ClassCreateDialog(Adw.Window):
         price_box.append(field_label("Цена, ₽"))
         price_box.append(self.price)
         form.append(price_box)
+        self.teacher_drop = None
+        if user["role"] == "admin":
+            teachers = db.list_teachers(only_active=True)
+            if teachers:
+                self.teacher_drop = LabeledDrop(
+                    [(item["id"], item["full_name"]) for item in teachers]
+                )
+                form.append(field_label("Педагог"))
+                form.append(self.teacher_drop)
         toolbar.set_content(scrolled(form))
         self.set_content(toolbar)
 
@@ -1133,6 +1391,12 @@ class ClassCreateDialog(Adw.Window):
         return row
 
     def _save(self):
+        teacher_id = self.parent_window.user["id"]
+        if self.teacher_drop is not None:
+            teacher_id = self.teacher_drop.value()
+            if teacher_id is None:
+                alert(self, "Выберите педагога")
+                return
         class_id, error = db.create_class(
             self.title_row.get_text(),
             text_of(self.description),
@@ -1142,7 +1406,7 @@ class ClassCreateDialog(Adw.Window):
             int(self.hours.get_value()),
             int(self.price.get_value()),
             int(self.capacity.get_value()),
-            self.parent_window.user["id"],
+            teacher_id,
         )
         if error:
             alert(self, "Не опубликовано", error)
@@ -1182,6 +1446,17 @@ class ProductDialog(Adw.Window):
         form.set_margin_end(16)
         form.set_margin_top(12)
         form.set_margin_bottom(16)
+        self.owner_drop = None
+        if product is None and parent.user["role"] == "admin":
+            ateliers = [item for item in db.list_users("atelier") if item["is_active"]]
+            if ateliers:
+                self.owner_drop = LabeledDrop(
+                    [(item["id"], item["full_name"]) for item in ateliers]
+                )
+                owner_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+                owner_box.append(field_label("Костюмер"))
+                owner_box.append(self.owner_drop)
+                form.append(owner_box)
         group = Adw.PreferencesGroup(title="Карточка")
         self.name = Adw.EntryRow(title="Название")
         group.add(self.name)
@@ -1211,6 +1486,7 @@ class ProductDialog(Adw.Window):
         form.append(self.active)
         toolbar.set_content(scrolled(form))
         self.set_content(toolbar)
+        self.edit_atelier = None
         if product:
             self.name.set_text(product["name"])
             self.description.get_buffer().set_text(product["description"])
@@ -1219,6 +1495,19 @@ class ProductDialog(Adw.Window):
             self.size.set_text(product["size"])
             self.stock.set_value(product["stock"])
             self.active.set_active(bool(product["is_active"]))
+            if parent.user["role"] == "admin":
+                ateliers = [item for item in db.list_users("atelier") if item["is_active"]]
+                if ateliers:
+                    self.edit_atelier = LabeledDrop(
+                        [(item["id"], item["full_name"]) for item in ateliers]
+                    )
+                    self.edit_atelier.set_value(product["atelier_id"])
+                    owner_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+                    owner_box.append(field_label("Костюмер"))
+                    owner_box.append(self.edit_atelier)
+                    form.prepend(owner_box)
+        else:
+            self.edit_atelier = None
 
     def _save(self):
         fields = {
@@ -1231,8 +1520,14 @@ class ProductDialog(Adw.Window):
             "is_active": self.active.get_active(),
         }
         if self.product_id is None:
+            owner_id = self.parent_window.user["id"]
+            if self.owner_drop is not None:
+                owner_id = self.owner_drop.value()
+                if owner_id is None:
+                    alert(self, "Выберите костюмера")
+                    return
             product_id, error = db.create_product(
-                self.parent_window.user["id"],
+                owner_id,
                 fields["name"],
                 fields["description"],
                 fields["category"],
@@ -1243,6 +1538,10 @@ class ProductDialog(Adw.Window):
             ok, message = (error is None), (error or "Костюм добавлен")
             saved_id = product_id
         else:
+            if self.edit_atelier is not None:
+                atelier_id = self.edit_atelier.value()
+                if atelier_id is not None:
+                    fields["atelier_id"] = atelier_id
             ok, message = db.update_product(self.product_id, self.parent_window.user["id"], **fields)
             saved_id = self.product_id
         if not ok:
@@ -1525,6 +1824,11 @@ class OverviewPage(Gtk.ScrolledWindow):
         box.append(board)
         self.set_child(box)
         self._cards = {}
+        self._stat_links = (
+            ("unassigned", "requests", "free"),
+            ("new_orders", "orders", "new"),
+            ("open_classes", "classes", "open"),
+        )
 
     def reload(self):
         data = db.stats()
@@ -1536,16 +1840,27 @@ class OverviewPage(Gtk.ScrolledWindow):
             ("new_orders", "Запросы костюмов"),
             ("products", "Костюмерная"),
         )
+        link_map = {item[0]: (item[1], item[2]) for item in self._stat_links}
         if not self._cards:
             for key, caption in captions:
-                card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-                card.add_css_class("ol-stat")
+                card = Gtk.Button()
+                card.add_css_class("flat")
+                inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                inner.add_css_class("ol-stat")
                 value = Gtk.Label(label="0", xalign=0)
                 value.add_css_class("ol-stat-num")
                 title = Gtk.Label(label=caption, xalign=0)
                 title.add_css_class("ol-stat-cap")
-                card.append(value)
-                card.append(title)
+                inner.append(value)
+                inner.append(title)
+                card.set_child(inner)
+                if key in link_map:
+                    page_key, mode = link_map[key]
+                    card.connect(
+                        "clicked",
+                        lambda *_button, pk=page_key, fm=mode: self._jump(pk, fm),
+                    )
+                    card.set_tooltip_text("Открыть раздел")
                 self.stats.append(card)
                 self._cards[key] = value
         for key, _caption in captions:
@@ -1614,6 +1929,11 @@ class OverviewPage(Gtk.ScrolledWindow):
             row.append(mark)
             self.board.append(row)
 
+    def _jump(self, page_key, filter_mode):
+        shell = self.window.shell
+        if shell is not None:
+            shell.open_page(page_key, filter_mode)
+
     def _distribute(self):
         assigned, lines = matching.distribute_pending(self.window.user["id"])
         self.reload()
@@ -1636,7 +1956,11 @@ class UsersPage(ListPage):
         edit.connect("clicked", lambda *_: self._edit())
         toggle = Gtk.Button(label="Вкл / выкл")
         toggle.connect("clicked", lambda *_: self._toggle())
-        self._bar(self.search, add, edit, toggle)
+        self.role_filter = LabeledDrop(
+            [("all", "Все роли"), *[(role, db.ROLE_RU[role]) for role in ROLE_ORDER]]
+        )
+        self.role_filter.connect("notify::selected", lambda *_: self.reload())
+        self._bar(self.role_filter, self.search, add, edit, toggle)
         self._finish_table(on_activate=self._edit)
         self._ready = True
 
@@ -1644,9 +1968,12 @@ class UsersPage(ListPage):
         if not self._ready:
             return
         query = self.search.get_text().strip().casefold()
+        role_mode = self.role_filter.value()
         ratings = {teacher["id"]: teacher for teacher in db.list_teachers(only_active=False)}
         rows = []
         for user in db.list_users():
+            if role_mode != "all" and user["role"] != role_mode:
+                continue
             blob = f"{user['login']} {user['full_name']}".casefold()
             if query and query not in blob:
                 continue
@@ -1723,6 +2050,14 @@ class RequestsPage(ListPage):
         open_btn = Gtk.Button(label="Открыть")
         open_btn.connect("clicked", lambda *_: self._open())
         widgets = [self.filter, self.search, open_btn]
+        if scope == "all" and window.user["role"] == "admin":
+            create = Gtk.Button(label="Новая заявка")
+            create.add_css_class("suggested-action")
+            create.connect(
+                "clicked",
+                lambda *_: AdminRequestDialog(self.window, self.reload).present(),
+            )
+            widgets.append(create)
         if scope == "free":
             take = Gtk.Button(label="Взять")
             take.add_css_class("suggested-action")
@@ -1774,6 +2109,9 @@ class RequestsPage(ListPage):
                 )
             )
         self._fill(shown)
+
+    def apply_filter(self, mode):
+        self.filter.set_value(mode)
 
     def _open(self):
         request_id = self._selected()
@@ -1881,6 +2219,89 @@ class NewRequestPage(Gtk.Box):
             self.submit.set_sensitive(True)
 
 
+class AdminRequestDialog(Adw.Window):
+    def __init__(self, parent, on_saved):
+        super().__init__(transient_for=parent, modal=True, destroy_with_parent=True)
+        self.parent_window = parent
+        self.on_saved = on_saved
+        self.set_default_size(520, 680)
+        self.set_title("Заявка от ученика")
+        toolbar = Adw.ToolbarView()
+        header = Adw.HeaderBar()
+        header.set_title_widget(Adw.WindowTitle(title="Новая заявка", subtitle="От имени ученика"))
+        save = Gtk.Button(label="Создать")
+        save.add_css_class("suggested-action")
+        save.connect("clicked", lambda *_: self._save())
+        header.pack_end(save)
+        toolbar.add_top_bar(header)
+        form = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        form.set_margin_start(16)
+        form.set_margin_end(16)
+        form.set_margin_top(12)
+        form.set_margin_bottom(16)
+        students = [
+            (item["id"], item["full_name"])
+            for item in db.list_users("student")
+            if item["is_active"]
+        ]
+        self.student = LabeledDrop(students or [(0, "—")])
+        form.append(field_label("Ученик"))
+        form.append(self.student)
+        self.title_row = Adw.EntryRow(title="Тема")
+        self.date_row = Adw.EntryRow(title="Желаемая дата")
+        group = Adw.PreferencesGroup()
+        group.add(self.title_row)
+        group.add(self.date_row)
+        form.append(group)
+        form.append(field_label("Описание"))
+        self.description, desc_scroll = text_view(100)
+        form.append(desc_scroll)
+        styles = [(key, db.STYLE_RU[key]) for key in db.STYLES if key != "other"]
+        branches = [(key, db.BRANCH_RU[key]) for key in db.BRANCHES if key != "other"]
+        self.style = LabeledDrop(styles)
+        self.branch = LabeledDrop(branches)
+        self.priority = LabeledDrop(list(db.PRIORITY_RU.items()))
+        self.priority.set_value("normal")
+        self.people = int_spin(1, 8, 1)
+        row = Gtk.Box(spacing=12)
+        for caption, widget in (
+            ("Стиль", self.style),
+            ("Зал", self.branch),
+            ("Приоритет", self.priority),
+            ("Человек", self.people),
+        ):
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, hexpand=True)
+            box.append(field_label(caption))
+            box.append(widget)
+            row.append(box)
+        form.append(row)
+        toolbar.set_content(scrolled(form))
+        self.set_content(toolbar)
+
+    def _save(self):
+        student_id = self.student.value()
+        if not student_id:
+            alert(self, "Выберите ученика")
+            return
+        request_id, error = db.create_request(
+            self.title_row.get_text(),
+            text_of(self.description),
+            self.style.value(),
+            self.branch.value(),
+            int(self.people.get_value()),
+            self.date_row.get_text(),
+            self.priority.value(),
+            student_id,
+            actor_id=self.parent_window.user["id"],
+        )
+        if error:
+            alert(self, "Не создано", error)
+            return
+        self.close()
+        self.on_saved()
+        self.parent_window.notify(f"Заявка №{request_id} создана")
+
+
 class ClassesPage(ListPage):
     def __init__(self, window, scope):
         super().__init__(window)
@@ -1909,7 +2330,7 @@ class ClassesPage(ListPage):
         open_btn = Gtk.Button(label="Открыть")
         open_btn.connect("clicked", lambda *_: self._open())
         widgets = [self.filter, self.search, open_btn]
-        if scope == "mine":
+        if scope == "mine" or (scope == "all" and window.user["role"] == "admin"):
             create = Gtk.Button(label="Новое занятие")
             create.add_css_class("suggested-action")
             create.connect("clicked", lambda *_: ClassCreateDialog(self.window, self._created).present())
@@ -1957,6 +2378,9 @@ class ClassesPage(ListPage):
         if first is not None:
             self.board.select_child(first)
         self.count.set_text(f"{shown} занятий" if shown else "Занятий нет")
+
+    def apply_filter(self, mode):
+        self.filter.set_value(mode)
 
     def _card(self, lesson):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -2112,7 +2536,7 @@ class ProductsPage(ListPage):
             buy.connect("clicked", lambda *_: self._buy())
             widgets.append(buy)
         else:
-            if scope == "mine":
+            if scope == "mine" or (scope == "all" and self.window.user["role"] == "admin"):
                 add = Gtk.Button(label="Добавить")
                 add.add_css_class("suggested-action")
                 add.connect("clicked", lambda *_: self._create())
@@ -2325,6 +2749,9 @@ class OrdersPage(ListPage):
             return
         present_ready(OrderDialog(self.window, order_id, self.reload), self.window, "Выдача недоступна")
 
+    def apply_filter(self, mode):
+        self.filter.set_value(mode)
+
 
 class ProgressPage(Gtk.ScrolledWindow):
     def __init__(self, window):
@@ -2525,8 +2952,10 @@ class ShellView(Gtk.Box):
         self.append(content)
 
         self.pages = {}
+        self._nav_meta = []
         menu = self._menu(window.user["role"])
         for key, title, hint, factory in menu:
+            self._nav_meta.append((key, title, hint))
             page = factory()
             self.pages[key] = page
             self.stack.add_named(page, key)
@@ -2593,6 +3022,25 @@ class ShellView(Gtk.Box):
         page = self.pages.get(key)
         if page is not None:
             page.reload()
+
+    def open_page(self, key, filter_mode=None):
+        for index, (nav_key, title, hint) in enumerate(self._nav_meta):
+            if nav_key != key:
+                continue
+            page = self.pages.get(key)
+            if page is not None and filter_mode is not None and hasattr(page, "apply_filter"):
+                page.apply_filter(filter_mode)
+            self._switching = True
+            for other in self._navs:
+                other.set_active(False)
+            self._navs[index].set_active(True)
+            self._switching = False
+            self.banner.set_label(title)
+            self.kicker.set_label(hint)
+            self.stack.set_visible_child_name(key)
+            if page is not None:
+                page.reload()
+            return
 
     def sync_identity(self):
         user = self.window.user

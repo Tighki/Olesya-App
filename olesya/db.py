@@ -926,6 +926,51 @@ def list_xp(user_id, limit=8):
     return [dict(row) for row in rows]
 
 
+def set_user_xp(user_id, actor_id, xp):
+    amount, error = _as_int(xp, 0, 1_000_000, "Опыт")
+    if error:
+        return False, error
+    conn = connect()
+    try:
+        with conn:
+            actor = conn.execute("SELECT role, is_active FROM users WHERE id = ?", (actor_id,)).fetchone()
+            user = conn.execute("SELECT role, xp FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not actor or actor["role"] != "admin" or not actor["is_active"]:
+                return False, "Опыт меняет администратор"
+            if not user or user["role"] != "student":
+                return False, "Опыт задаётся только ученику"
+            old = int(user["xp"] or 0)
+            if old == amount:
+                return False, "Нет изменений"
+            conn.execute("UPDATE users SET xp = ? WHERE id = ?", (amount, user_id))
+            conn.execute(
+                "INSERT INTO xp_log (user_id, source, amount, reason, created_at) VALUES (?, ?, ?, ?, ?)",
+                (user_id, "admin", amount - old, f"Корректировка: {old} → {amount}", now()),
+            )
+            _sync_badges(conn, user_id)
+        return True, "Опыт обновлён"
+    finally:
+        conn.close()
+
+
+def refresh_user_badges(user_id, actor_id):
+    conn = connect()
+    try:
+        with conn:
+            actor = conn.execute(
+                "SELECT role, is_active FROM users WHERE id = ?", (actor_id,)
+            ).fetchone()
+            user = conn.execute("SELECT id FROM users WHERE id = ?", (user_id,)).fetchone()
+            if not actor or actor["role"] != "admin" or not actor["is_active"]:
+                return False, "Недостаточно прав"
+            if not user:
+                return False, "Пользователь не найден"
+            _sync_badges(conn, user_id)
+        return True, "Значки обновлены"
+    finally:
+        conn.close()
+
+
 def create_user(login, password, full_name, role="student", style="other", branch="other", about="", is_active=1):
     login = login.strip().lower()
     full_name = full_name.strip()
@@ -1099,7 +1144,7 @@ def _release_teacher_requests(conn, teacher_id, actor_id):
     return released
 
 
-def create_request(title, description, style, branch, people, preferred_date, priority, student_id):
+def create_request(title, description, style, branch, people, preferred_date, priority, student_id, actor_id=None):
     title = title.strip()
     description = description.strip()
     if not title:
@@ -1123,6 +1168,13 @@ def create_request(title, description, style, branch, people, preferred_date, pr
     conn = connect()
     try:
         with conn:
+            if actor_id is not None:
+                actor = conn.execute(
+                    "SELECT role, is_active FROM users WHERE id = ?",
+                    (actor_id,),
+                ).fetchone()
+                if not actor or actor["role"] != "admin" or not actor["is_active"]:
+                    return None, "От имени ученика заявку создаёт администратор"
             student = conn.execute(
                 "SELECT role, is_active FROM users WHERE id = ?",
                 (student_id,),
@@ -1137,7 +1189,8 @@ def create_request(title, description, style, branch, people, preferred_date, pr
                 (title, description, style, branch, people_count, preferred, priority, student_id, now()),
             )
             request_id = cur.lastrowid
-            _log(conn, "request", request_id, student_id, "Заявка создана")
+            author = actor_id or student_id
+            _log(conn, "request", request_id, author, "Заявка создана")
         return request_id, None
     except IntegrityError:
         return None, "Такая заявка уже открыта"
@@ -1177,6 +1230,71 @@ def get_request(request_id):
     row = conn.execute(_REQUEST_SQL + " WHERE r.id = ?", (request_id,)).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def update_request(request_id, actor_id, **fields):
+    allowed = {
+        "title",
+        "description",
+        "style",
+        "branch",
+        "people",
+        "preferred_date",
+        "priority",
+    }
+    values = {key: value for key, value in fields.items() if key in allowed}
+    if not values:
+        return False, "Нет изменений"
+    conn = connect()
+    try:
+        with conn:
+            current = conn.execute("SELECT * FROM requests WHERE id = ?", (request_id,)).fetchone()
+            actor = conn.execute("SELECT * FROM users WHERE id = ?", (actor_id,)).fetchone()
+            if not current:
+                return False, "Заявка не найдена"
+            if not actor or not actor["is_active"]:
+                return False, "Недостаточно прав"
+            if actor["role"] != "admin":
+                return False, "Редактировать может администратор"
+            if current["status"] in ("done", "cancelled"):
+                return False, "Закрытую заявку нельзя менять"
+            if "title" in values:
+                values["title"] = values["title"].strip()
+                if not values["title"] or len(values["title"]) > 120:
+                    return False, "Укажите тему, не длиннее 120 символов"
+                if _open_request_duplicate(
+                    conn, current["student_id"], values["title"], request_id
+                ):
+                    return False, "Такая заявка уже открыта"
+            if "description" in values:
+                values["description"] = values["description"].strip()
+                if len(values["description"]) > 2000:
+                    return False, "Описание слишком длинное"
+            if "style" in values and values["style"] not in STYLES:
+                return False, "Неизвестный стиль"
+            if "branch" in values and values["branch"] not in BRANCHES:
+                return False, "Неизвестный зал"
+            if "priority" in values and values["priority"] not in PRIORITIES:
+                return False, "Неизвестный приоритет"
+            if "people" in values:
+                people_count, error = _as_int(values["people"], 1, 12, "Число людей")
+                if error:
+                    return False, error
+                values["people"] = people_count
+            if "preferred_date" in values:
+                preferred, error = _parse_date(values["preferred_date"], allow_empty=True, not_past=False)
+                if error:
+                    return False, error
+                values["preferred_date"] = preferred
+            assignments = ", ".join(f"{key} = ?" for key in values)
+            conn.execute(
+                f"UPDATE requests SET {assignments} WHERE id = ?",
+                (*values.values(), request_id),
+            )
+            _log(conn, "request", request_id, actor_id, "Карточка заявки обновлена")
+        return True, "Заявка сохранена"
+    finally:
+        conn.close()
 
 
 def assign_request(request_id, teacher_id, actor_id=None, note=""):
@@ -1402,6 +1520,100 @@ def get_class(class_id):
     row = conn.execute(_CLASS_SQL + " WHERE c.id = ?", (class_id,)).fetchone()
     conn.close()
     return dict(row) if row else None
+
+
+def update_class(class_id, actor_id, **fields):
+    allowed = {
+        "title",
+        "description",
+        "style",
+        "branch",
+        "class_date",
+        "duration_hours",
+        "price",
+        "capacity",
+        "teacher_id",
+    }
+    values = {key: value for key, value in fields.items() if key in allowed}
+    if not values:
+        return False, "Нет изменений"
+    conn = connect()
+    try:
+        with conn:
+            lesson = conn.execute("SELECT * FROM classes WHERE id = ?", (class_id,)).fetchone()
+            actor = conn.execute("SELECT * FROM users WHERE id = ?", (actor_id,)).fetchone()
+            if not lesson:
+                return False, "Занятие не найдено"
+            if not actor or not actor["is_active"]:
+                return False, "Недостаточно прав"
+            if lesson["status"] in ("completed", "cancelled"):
+                return False, "Закрытое занятие нельзя менять"
+            is_owner = actor["role"] == "teacher" and actor["id"] == lesson["teacher_id"]
+            if not (actor["role"] == "admin" or is_owner):
+                return False, "Недостаточно прав"
+            if "title" in values:
+                values["title"] = values["title"].strip()
+                if not values["title"] or len(values["title"]) > 120:
+                    return False, "Укажите название, не длиннее 120 символов"
+            if "description" in values:
+                values["description"] = values["description"].strip()
+                if len(values["description"]) > 2000:
+                    return False, "Описание слишком длинное"
+            if "style" in values:
+                if values["style"] not in STYLES or values["style"] == "other":
+                    return False, "Выберите стиль занятия"
+            if "branch" in values:
+                if values["branch"] not in BRANCHES or values["branch"] == "other":
+                    return False, "Выберите зал"
+            if "class_date" in values:
+                parsed_date, error = _parse_date(values["class_date"], not_past=False)
+                if error:
+                    return False, error
+                values["class_date"] = parsed_date
+            if "duration_hours" in values:
+                hours, error = _as_int(values["duration_hours"], 1, 6, "Длительность, часы")
+                if error:
+                    return False, error
+                values["duration_hours"] = hours
+            if "price" in values:
+                amount, error = _as_int(values["price"], 100, 100_000, "Цена")
+                if error:
+                    return False, error
+                values["price"] = amount
+            if "capacity" in values:
+                seats, error = _as_int(values["capacity"], 1, 30, "Число мест")
+                if error:
+                    return False, error
+                taken = _taken_seats(conn, class_id)
+                if seats < taken:
+                    return False, f"Уже занято мест: {taken}"
+                values["capacity"] = seats
+            if "teacher_id" in values:
+                teacher = conn.execute(
+                    "SELECT full_name, role, is_active FROM users WHERE id = ?",
+                    (values["teacher_id"],),
+                ).fetchone()
+                if not teacher or teacher["role"] != "teacher" or not teacher["is_active"]:
+                    return False, "Нужен активный педагог"
+                if values["teacher_id"] != lesson["teacher_id"]:
+                    _log(
+                        conn,
+                        "class",
+                        class_id,
+                        actor_id,
+                        f"Педагог изменён: {teacher['full_name']}",
+                    )
+            assignments = ", ".join(f"{key} = ?" for key in values)
+            conn.execute(
+                f"UPDATE classes SET {assignments} WHERE id = ?",
+                (*values.values(), class_id),
+            )
+            if "capacity" in values:
+                _sync_class_capacity(conn, class_id, actor_id)
+            _log(conn, "class", class_id, actor_id, "Карточка занятия обновлена")
+        return True, "Занятие сохранено"
+    finally:
+        conn.close()
 
 
 def _taken_seats(conn, class_id):
@@ -1641,7 +1853,7 @@ def _product_name_taken(conn, atelier_id, name, exclude_id=None):
 
 
 def update_product(product_id, actor_id, **fields):
-    allowed = {"name", "description", "category", "style", "size", "stock", "is_active"}
+    allowed = {"name", "description", "category", "style", "size", "stock", "is_active", "atelier_id"}
     values = {key: value for key, value in fields.items() if key in allowed and value is not None}
     conn = connect()
     try:
@@ -1679,6 +1891,19 @@ def update_product(product_id, actor_id, **fields):
                 values["stock"] = qty
             if "is_active" in values:
                 values["is_active"] = 1 if values["is_active"] else 0
+            if "atelier_id" in values:
+                if actor["role"] != "admin":
+                    return False, "Сменить костюмера может администратор"
+                atelier = conn.execute(
+                    "SELECT role, is_active FROM users WHERE id = ?",
+                    (values["atelier_id"],),
+                ).fetchone()
+                if not atelier or atelier["role"] != "atelier" or not atelier["is_active"]:
+                    return False, "Нужен активный костюмер"
+                owner = values["atelier_id"]
+                name = values.get("name", product["name"])
+                if _product_name_taken(conn, owner, name, product_id):
+                    return False, "У этого костюмера уже есть такая вещь"
             if not values:
                 return False, "Нет изменений"
             assignments = ", ".join(f"{key} = ?" for key in values)
